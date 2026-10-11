@@ -10,6 +10,22 @@
       "cwd": "${workspaceFolder}/services/api",
       "console": "integratedTerminal",
       "justMyCode": true
+    },
+    {
+      "name": "GOGDELY Cliente • Laboratório (Chrome)",
+      "type": "dart",
+      "request": "launch",
+      "cwd": "${workspaceFolder}/apps/cliente",
+      "program": "lib/main.dart",
+      "deviceId": "chrome",
+      "toolArgs": ["--dart-define=GOGDELY_LAB=true"]
+    },
+    {
+      "name": "GOGDELY Cliente • Flutter (dispositivo)",
+      "type": "dart",
+      "request": "launch",
+      "cwd": "${workspaceFolder}/apps/cliente",
+      "program": "lib/main.dart"
     }
   ]
 }
