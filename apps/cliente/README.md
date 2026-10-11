@@ -1,30 +1,20 @@
-# GOGDELY Cliente — protótipo Flutter de componentes
+# GOGDELY Cliente — laboratório de dispositivos
 
-**Status:** integração inicial para avaliação técnica. Não é marketplace funcional.
+**Status:** protótipo em revisão, sem integração com produção.
 
-## Componentes externos
-- [flutter_map](https://github.com/fleaflet/flutter_map) — BSD-3-Clause, renderização de mapas Flutter.
-- [mobile_scanner](https://github.com/juliansteenbakker/mobile_scanner) — BSD-3-Clause, leitura QR/barcode.
-- [latlong2](https://pub.dev/packages/latlong2) — coordenadas para o mapa (licença da versão resolvida ainda a verificar).
+## VS Code no Windows
+1. Instalar Flutter SDK e extensões Dart/Flutter.
+2. No terminal, dentro de `apps/cliente`, executar `flutter pub get`.
+3. Se o projeto não tiver scaffolding Flutter nativo completo, executar `flutter create --platforms=android,ios,web .` e revisar arquivos gerados.
+4. Abrir o repositório no VS Code, selecionar **GOGDELY Cliente • Laboratório (Chrome)** e pressionar **F5**.
+5. Selecionar iPhone, Android ou tablet; alternar orientação, notificações fictícias, pedido fictício e indicador de rede.
 
-As bibliotecas são referenciadas via pubspec; **código de terceiros não foi copiado**. Avisos de licença devem acompanhar distribuição.
+O modo laboratório usa `--dart-define=GOGDELY_LAB=true` e só aparece no Flutter Web. Os controles de offline **não desligam a conexão real**; simulam apenas indicadores visuais. O estado do pedido não é persistido nem enviado à API.
 
-## Executar após revisão
-Requer Flutter SDK no Windows. No diretório `apps/cliente`:
+## Testes
+`flutter analyze` e `flutter test` devem ser executados antes de homologação. Ainda não foram executados neste ambiente.
 
-```powershell
-flutter create --platforms=android,ios,web .
-flutter pub get
-flutter analyze
-flutter test
-flutter run -d chrome
-```
+## Dependências de terceiros
+`flutter_map` e `mobile_scanner` são declarados no pubspec; licenças e compatibilidade exigem revisão. QR Code apenas exibe conteúdo lido, não valida mesa. Mapa demonstrativo não tem provedor de tiles nem GPS.
 
-`flutter create` gera scaffolding nativo ainda ausente; revisar alterações antes de commitar. Chrome é prévia visual, não simulador iOS nativo. Android requer SDK/emulador e iOS requer macOS/Xcode.
-
-## Limitações
-- QR: somente exibe conteúdo bruto, sem validar QR de mesa nem registrar pedidos.
-- Mapa: sem provedor de tiles; não exibe cartografia completa, GPS ou rotas.
-- Câmera exige permissões e contexto seguro; comportamento varia por plataforma.
-- Sem autenticação, backend, pagamentos, pedidos ou dados reais.
-- Versões e compatibilidade exigem testes e lockfile antes da homologação.
+**Limitação:** Chrome com moldura de iPhone não é simulador iOS nativo. Builds iOS requerem macOS/Xcode.
