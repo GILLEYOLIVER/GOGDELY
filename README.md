@@ -2,7 +2,7 @@
 
 Plataforma marketplace multiempresa e multissetorial (planejamento v1.0).
 
-**Estado:** inicialização documental; sem aplicativo executável, sem dependências instaladas, sem serviços pagos e sem deploy.
+**Estado:** protótipos locais de Cliente, Gestão e Entregador executáveis no Windows. Um fluxo opt-in de pedidos fictícios usa a API FastAPI e SQLite isolado no computador para testar gravação e leitura entre os três aplicativos. Nenhum app está homologado, e não houve serviço pago nem deploy.
 
 ## Aplicativos previstos
 - Cliente — Android e iOS (Flutter)

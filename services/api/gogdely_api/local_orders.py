@@ -1,0 +1,1151 @@
+"""Isolated SQLite order flow for local cross-app demonstrations only.
+
+This is deliberately separate from the planned PostgreSQL/Supabase production
+architecture. It has no authentication, payment, GPS, or production credentials.
+Routes are disabled unless GOGDELY_LOCAL_DEMO=1.
+"""
+
+import json
+import os
+import sqlite3
+import secrets
+import re
+import base64
+import hashlib
+import binascii
+from html import escape
+from io import BytesIO
+from contextlib import contextmanager
+from datetime import datetime, timezone
+from pathlib import Path
+from urllib.parse import parse_qs
+from uuid import UUID
+from uuid import uuid4
+from typing import Literal
+
+import qrcode
+import qrcode.image.svg
+from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import FileResponse, HTMLResponse, RedirectResponse, Response
+from pydantic import BaseModel, Field
+
+router = APIRouter(prefix="/api/v1/local", tags=["local-demo"])
+
+CATALOG = {
+    "burger-house": ("Burger House", {"x-tudo": ("X-Tudo", 2890), "batata": ("Batata Especial", 1890), "refrigerante": ("Refrigerante Lata", 690)}),
+    "pizzaria-napoli": ("Pizzaria Napoli", {"margherita": ("Pizza Margherita", 3290), "calabresa": ("Pizza Calabresa", 3490), "portuguesa": ("Pizza Portuguesa", 3690)}),
+    "sushi-express": ("Sushi Express", {"combo-sushi": ("Combo Sushi", 4990)}),
+    "mercado-mais": ("Mercado Mais", {"cesta": ("Cesta de frutas", 2490), "cafe": ("Café moído", 1890)}),
+    "farmacia-saude": ("Farmácia Saúde", {"kit-higiene": ("Kit de higiene", 1590)}),
+}
+EXTRAS = {"Borda recheada", "Mussarela extra", "Manjericão extra"}
+DEFAULT_BURGER_ADDONS = [
+    {"name": "Borda recheada", "price_cents": 300},
+    {"name": "Mussarela extra", "price_cents": 300},
+    {"name": "Manjericão extra", "price_cents": 300},
+]
+DEFAULT_PAYMENT_METHODS = ["cash", "pix", "card"]
+NEXT_STATUS = {
+    "created": ("preparing", "management"),
+    "preparing": ("ready", "management"),
+    "ready": ("in_delivery", "courier"),
+    "in_delivery": ("delivered", "courier"),
+}
+
+
+def _enabled() -> None:
+    if os.getenv("GOGDELY_LOCAL_DEMO") != "1" or os.getenv("GOGDELY_ENV", "local") != "local":
+        raise HTTPException(status_code=404, detail="Local demo disabled")
+
+
+def _db_path() -> Path:
+    return Path(os.getenv("GOGDELY_LOCAL_DB", str(Path(__file__).resolve().parents[1] / ".local" / "gogdely.sqlite3"))).resolve()
+
+
+def _connect() -> sqlite3.Connection:
+    path = _db_path()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    connection = sqlite3.connect(path, timeout=10)
+    connection.row_factory = sqlite3.Row
+    connection.execute("PRAGMA busy_timeout = 10000")
+    connection.execute("PRAGMA journal_mode = WAL")
+    connection.execute("""CREATE TABLE IF NOT EXISTS demo_orders (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        request_key TEXT NOT NULL UNIQUE,
+        tenant_id TEXT NOT NULL DEFAULT 'local-demo',
+        store_id TEXT NOT NULL,
+        store_name TEXT NOT NULL,
+        address_label TEXT NOT NULL,
+        items_json TEXT NOT NULL,
+        subtotal_cents INTEGER NOT NULL,
+        delivery_fee_cents INTEGER NOT NULL,
+        total_cents INTEGER NOT NULL,
+        status TEXT NOT NULL,
+        payment_method TEXT NOT NULL DEFAULT 'unselected',
+        pickup_code TEXT,
+        delivery_code TEXT,
+        dispatch_mode TEXT NOT NULL DEFAULT 'internal',
+        stock_reserved_json TEXT NOT NULL DEFAULT '{}',
+        ingredient_reserved_json TEXT NOT NULL DEFAULT '{}',
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    )""")
+    columns = {row["name"] for row in connection.execute("PRAGMA table_info(demo_orders)")}
+    if "table_code" not in columns:
+        connection.execute("ALTER TABLE demo_orders ADD COLUMN table_code TEXT")
+    if "order_channel" not in columns:
+        connection.execute("ALTER TABLE demo_orders ADD COLUMN order_channel TEXT NOT NULL DEFAULT 'delivery'")
+    if "payment_method" not in columns:
+        connection.execute("ALTER TABLE demo_orders ADD COLUMN payment_method TEXT NOT NULL DEFAULT 'unselected'")
+    if "pickup_code" not in columns:
+        connection.execute("ALTER TABLE demo_orders ADD COLUMN pickup_code TEXT")
+    if "delivery_code" not in columns:
+        connection.execute("ALTER TABLE demo_orders ADD COLUMN delivery_code TEXT")
+    if "dispatch_mode" not in columns:
+        connection.execute("ALTER TABLE demo_orders ADD COLUMN dispatch_mode TEXT NOT NULL DEFAULT 'internal'")
+    if "stock_reserved_json" not in columns:
+        connection.execute("ALTER TABLE demo_orders ADD COLUMN stock_reserved_json TEXT NOT NULL DEFAULT '{}'")
+    if "ingredient_reserved_json" not in columns:
+        connection.execute("ALTER TABLE demo_orders ADD COLUMN ingredient_reserved_json TEXT NOT NULL DEFAULT '{}'")
+    for old_pickup in connection.execute(
+            "SELECT id FROM demo_orders WHERE order_channel='pickup' AND pickup_code IS NULL AND status!='picked_up'"):
+        connection.execute("UPDATE demo_orders SET pickup_code=? WHERE id=? AND pickup_code IS NULL",
+                           (f"{secrets.randbelow(1_000_000):06d}", old_pickup["id"]))
+    for old_delivery in connection.execute(
+            "SELECT id FROM demo_orders WHERE order_channel='delivery' AND delivery_code IS NULL AND status!='delivered'"):
+        connection.execute("UPDATE demo_orders SET delivery_code=? WHERE id=? AND delivery_code IS NULL",
+                           (f"{secrets.randbelow(1_000_000):06d}", old_delivery["id"]))
+    connection.execute("""CREATE TABLE IF NOT EXISTS demo_order_events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        order_id INTEGER NOT NULL,
+        from_status TEXT,
+        to_status TEXT NOT NULL,
+        actor TEXT NOT NULL,
+        reason TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL,
+        FOREIGN KEY (order_id) REFERENCES demo_orders(id)
+    )""")
+    connection.execute("CREATE INDEX IF NOT EXISTS demo_order_events_order_idx ON demo_order_events(order_id, id)")
+    connection.execute("""CREATE TABLE IF NOT EXISTS demo_store_payment_settings (
+        store_id TEXT PRIMARY KEY,
+        methods_json TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    )""")
+    connection.execute("""CREATE TABLE IF NOT EXISTS demo_menu_items (
+        store_id TEXT NOT NULL,
+        product_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        description TEXT NOT NULL,
+        category TEXT NOT NULL,
+        price_cents INTEGER NOT NULL,
+        image_ref TEXT NOT NULL DEFAULT '',
+        addons_json TEXT NOT NULL DEFAULT '[]',
+        recipe_json TEXT NOT NULL DEFAULT '[]',
+        available INTEGER NOT NULL DEFAULT 1,
+        stock_quantity INTEGER CHECK(stock_quantity IS NULL OR stock_quantity >= 0),
+        promo_percent INTEGER NOT NULL DEFAULT 0,
+        sort_order INTEGER NOT NULL DEFAULT 0,
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (store_id, product_id)
+    )""")
+    connection.execute("""CREATE TABLE IF NOT EXISTS demo_menu_events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        store_id TEXT NOT NULL,
+        product_id TEXT NOT NULL,
+        product_name TEXT NOT NULL,
+        action TEXT NOT NULL,
+        changes_json TEXT NOT NULL,
+        actor TEXT NOT NULL,
+        created_at TEXT NOT NULL
+    )""")
+    connection.execute("CREATE INDEX IF NOT EXISTS demo_menu_events_store_idx ON demo_menu_events(store_id, id)")
+    connection.execute("""CREATE TABLE IF NOT EXISTS demo_stock_movements (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        store_id TEXT NOT NULL,
+        item_kind TEXT NOT NULL,
+        item_id TEXT NOT NULL,
+        item_name TEXT NOT NULL,
+        unit TEXT NOT NULL,
+        movement_type TEXT NOT NULL,
+        quantity_delta INTEGER NOT NULL,
+        balance_before INTEGER,
+        balance_after INTEGER NOT NULL,
+        reason TEXT NOT NULL,
+        order_id INTEGER,
+        actor TEXT NOT NULL,
+        created_at TEXT NOT NULL
+    )""")
+    connection.execute("CREATE INDEX IF NOT EXISTS demo_stock_movements_store_idx ON demo_stock_movements(store_id, id)")
+    connection.execute("""CREATE TABLE IF NOT EXISTS demo_ingredients (
+        store_id TEXT NOT NULL,
+        ingredient_id TEXT NOT NULL,
+        name TEXT NOT NULL,
+        unit TEXT NOT NULL CHECK(unit IN ('un', 'g', 'ml')),
+        stock_quantity INTEGER NOT NULL CHECK(stock_quantity >= 0),
+        updated_at TEXT NOT NULL,
+        PRIMARY KEY (store_id, ingredient_id)
+    )""")
+    menu_columns = {row["name"] for row in connection.execute("PRAGMA table_info(demo_menu_items)")}
+    if "addons_json" not in menu_columns:
+        connection.execute("ALTER TABLE demo_menu_items ADD COLUMN addons_json TEXT NOT NULL DEFAULT '[]'")
+        connection.execute("""UPDATE demo_menu_items SET addons_json=?
+            WHERE store_id='burger-house' AND product_id='x-tudo'""",
+            (json.dumps(DEFAULT_BURGER_ADDONS, ensure_ascii=False),))
+    if "stock_quantity" not in menu_columns:
+        connection.execute("ALTER TABLE demo_menu_items ADD COLUMN stock_quantity INTEGER CHECK(stock_quantity IS NULL OR stock_quantity >= 0)")
+    if "recipe_json" not in menu_columns:
+        connection.execute("ALTER TABLE demo_menu_items ADD COLUMN recipe_json TEXT NOT NULL DEFAULT '[]'")
+    for sort_order, (product_id, name, description, category, price, image) in enumerate([
+        ("x-tudo", "X-Tudo", "Pão, carne, queijo, bacon e alface.", "Hambúrgueres", 2890, "assets/images/burger.png"),
+        ("batata", "Batata Especial", "Crocante e temperada.", "Acompanhamentos", 1890, "assets/images/burger.png"),
+        ("refrigerante", "Refrigerante Lata", "Lata de 350 ml.", "Bebidas", 690, ""),
+    ]):
+        connection.execute("""INSERT OR IGNORE INTO demo_menu_items
+            (store_id, product_id, name, description, category, price_cents, image_ref, addons_json, sort_order, updated_at)
+            VALUES ('burger-house', ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (product_id, name, description, category, price, image,
+             json.dumps(DEFAULT_BURGER_ADDONS if product_id == "x-tudo" else [], ensure_ascii=False),
+             sort_order, datetime.now(timezone.utc).isoformat()))
+    connection.commit()
+    return connection
+
+
+@contextmanager
+def _db():
+    connection = _connect()
+    try:
+        with connection:
+            yield connection
+    finally:
+        connection.close()
+
+
+def _order(row: sqlite3.Row) -> dict:
+    result = dict(row)
+    result["items"] = json.loads(result.pop("items_json"))
+    result.pop("stock_reserved_json", None)
+    result.pop("ingredient_reserved_json", None)
+    result["payment_status"] = "not_processed"
+    return result
+
+
+def _same_order_request(row: sqlite3.Row, payload: "OrderInput", table_code: str | None,
+                        order_channel: str, payment_method: str, address_label: str) -> bool:
+    if (row["store_id"] != payload.store_id or row["address_label"] != address_label or
+            row["table_code"] != table_code or row["order_channel"] != order_channel or
+            row["payment_method"] != payment_method):
+        return False
+    saved_items = json.loads(row["items_json"])
+    return len(saved_items) == len(payload.items) and all(
+        saved["product_id"] == requested.product_id and
+        saved["quantity"] == requested.quantity and
+        saved["size"] == requested.size and
+        saved["extras"] == requested.extras
+        for saved, requested in zip(saved_items, payload.items))
+
+
+def _table_code(value: str) -> str:
+    if not re.fullmatch(r"M(0[1-9]|[1-9][0-9])", value):
+        raise HTTPException(status_code=404, detail="Mesa local não encontrada")
+    return value
+
+
+def _html_page(title: str, body: str, *, refresh: bool = False) -> HTMLResponse:
+    refresh_tag = '<meta http-equiv="refresh" content="5">' if refresh else ""
+    return HTMLResponse(f"""<!doctype html><html lang="pt-BR"><head>
+    <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+    {refresh_tag}<title>{escape(title)} · GOGDELY</title>
+    <style>
+    :root{{font-family:system-ui,sans-serif;color:#1e293b;background:#f2f5ff}}
+    body{{max-width:640px;margin:0 auto;padding:20px 14px 48px}}
+    header{{background:#151b2b;color:white;border-radius:20px;padding:20px;margin-bottom:16px}}
+    h1{{margin:0 0 5px;font-size:27px}} h2{{font-size:18px}} p{{line-height:1.4}}
+    .blue{{color:#60a5fa}} .card{{background:white;border:1px solid #dce4f2;border-radius:16px;padding:16px;margin:10px 0}}
+    .row{{display:flex;align-items:center;gap:12px;justify-content:space-between}}
+    .row div{{flex:1}} img{{width:78px;height:78px;object-fit:cover;border-radius:12px}}
+    input[type=number]{{width:65px;padding:10px;border:1px solid #dce4f2;border-radius:10px;font-size:16px}}
+    button{{background:#2563eb;color:white;border:0;border-radius:12px;padding:15px 22px;font-size:16px;font-weight:700;cursor:pointer}}
+    small{{color:#64748b}} a{{color:#1d4ed8}}
+    </style></head><body>{body}</body></html>""")
+
+
+def _money(cents: int) -> str:
+    return f"R$ {cents // 100},{cents % 100:02d}"
+
+
+class ItemInput(BaseModel):
+    product_id: str
+    quantity: int = Field(ge=1, le=50)
+    size: str = "Tradicional"
+    extras: list[str] = Field(default_factory=list, max_length=10)
+
+
+class OrderInput(BaseModel):
+    request_key: UUID
+    store_id: str
+    address_label: str = Field(min_length=3, max_length=160)
+    items: list[ItemInput] = Field(min_length=1, max_length=30)
+    order_channel: Literal["delivery", "pickup"] = "delivery"
+    payment_method: Literal["unselected", "cash", "pix", "card"] = "cash"
+
+
+class PaymentMethodsInput(BaseModel):
+    methods: list[Literal["cash", "pix", "card"]] = Field(min_length=1, max_length=3)
+
+
+class MenuOrderInput(BaseModel):
+    product_ids: list[str] = Field(min_length=1, max_length=200)
+
+
+class StatusInput(BaseModel):
+    status: str
+    actor: str
+    pickup_code: str | None = Field(default=None, pattern=r"^\d{6}$")
+    delivery_code: str | None = Field(default=None, pattern=r"^\d{6}$")
+
+
+class CancelInput(BaseModel):
+    actor: Literal["customer", "management"]
+    reason: str = Field(min_length=3, max_length=300)
+
+
+class AddonInput(BaseModel):
+    name: str = Field(min_length=2, max_length=60)
+    price_cents: int = Field(ge=0, le=100000)
+
+
+class RecipePartInput(BaseModel):
+    ingredient_id: str = Field(pattern=r"^[a-z0-9][a-z0-9-]{1,47}$")
+    quantity: int = Field(ge=1, le=1000000)
+
+
+class IngredientInput(BaseModel):
+    ingredient_id: str = Field(pattern=r"^[a-z0-9][a-z0-9-]{1,47}$")
+    name: str = Field(min_length=2, max_length=100)
+    unit: Literal["un", "g", "ml"]
+    stock_quantity: int = Field(ge=0, le=100000000)
+    expected_updated_at: str | None = None
+
+
+class StockAdjustmentInput(BaseModel):
+    item_kind: Literal["product", "ingredient"]
+    item_id: str = Field(pattern=r"^[a-z0-9][a-z0-9-]{1,47}$")
+    movement_type: Literal["restock", "loss", "count"]
+    quantity: int = Field(ge=0, le=100000000)
+    reason: str = Field(min_length=3, max_length=300)
+
+
+class MenuItemInput(BaseModel):
+    product_id: str = Field(pattern=r"^[a-z0-9][a-z0-9-]{1,47}$")
+    name: str = Field(min_length=2, max_length=100)
+    description: str = Field(max_length=500)
+    category: str = Field(min_length=2, max_length=60)
+    price_cents: int = Field(ge=1, le=10000000)
+    image_ref: str = Field(default="", max_length=500)
+    available: bool = True
+    stock_quantity: int | None = Field(default=None, ge=0, le=1000000)
+    expected_updated_at: str | None = None
+    promo_percent: int = Field(default=0, ge=0, le=90)
+    addons: list[AddonInput] = Field(default_factory=list, max_length=20)
+    recipe: list[RecipePartInput] = Field(default_factory=list, max_length=20)
+
+
+class ImageUploadInput(BaseModel):
+    data_base64: str = Field(max_length=7500000)
+    mime_type: str
+
+
+def _validate_addons(addons: list[AddonInput]) -> None:
+    names = [addon.name.strip().casefold() for addon in addons]
+    if any(len(name) < 2 for name in names) or len(names) != len(set(names)):
+        raise HTTPException(status_code=422, detail="Additional item names must be unique")
+
+
+def _validate_recipe(db: sqlite3.Connection, recipe: list[RecipePartInput]) -> None:
+    ids = [part.ingredient_id for part in recipe]
+    if len(ids) != len(set(ids)):
+        raise HTTPException(status_code=422, detail="Ingredient appears twice in the recipe")
+    available = {row["ingredient_id"] for row in db.execute(
+        "SELECT ingredient_id FROM demo_ingredients WHERE store_id='burger-house'")}
+    if any(ingredient_id not in available for ingredient_id in ids):
+        raise HTTPException(status_code=422, detail="Recipe ingredient not found")
+
+
+def _menu_item(row: sqlite3.Row) -> dict:
+    item = dict(row)
+    item["addons"] = json.loads(item.pop("addons_json"))
+    item["recipe"] = json.loads(item.pop("recipe_json"))
+    item["available"] = bool(item["available"])
+    item["effective_price_cents"] = item["price_cents"] * (100 - item["promo_percent"]) // 100
+    return item
+
+
+def _orderable(item: dict, ingredient_stocks: dict[str, int]) -> bool:
+    return (item["available"] and item["stock_quantity"] != 0 and
+            all(ingredient_stocks.get(part["ingredient_id"], 0) >= part["quantity"]
+                for part in item["recipe"]))
+
+
+def _ingredient_stocks(db: sqlite3.Connection) -> dict[str, int]:
+    return {row["ingredient_id"]: row["stock_quantity"] for row in db.execute(
+        "SELECT ingredient_id, stock_quantity FROM demo_ingredients WHERE store_id='burger-house'")}
+
+
+def _log_menu_event(db: sqlite3.Connection, action: str, before: dict | None,
+                    after: dict, created_at: str, actor: str = "management_local") -> None:
+    tracked = ("name", "description", "category", "price_cents", "image_ref",
+               "addons", "recipe", "available", "stock_quantity", "promo_percent", "sort_order")
+    changes = {
+        key: {"before": before.get(key) if before else None, "after": after[key]}
+        for key in tracked if before is None or before.get(key) != after[key]
+    }
+    if changes:
+        db.execute("""INSERT INTO demo_menu_events
+            (store_id, product_id, product_name, action, changes_json, actor, created_at)
+            VALUES ('burger-house', ?, ?, ?, ?, ?, ?)""",
+            (after["product_id"], after["name"], action,
+             json.dumps(changes, ensure_ascii=False), actor, created_at))
+
+
+def _log_stock_movement(db: sqlite3.Connection, kind: str, item_id: str,
+                        name: str, unit: str, movement_type: str,
+                        before: int | None, after: int, reason: str,
+                        actor: str, now: str, order_id: int | None = None) -> None:
+    db.execute("""INSERT INTO demo_stock_movements
+        (store_id, item_kind, item_id, item_name, unit, movement_type,
+         quantity_delta, balance_before, balance_after, reason, order_id, actor, created_at)
+        VALUES ('burger-house', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (kind, item_id, name, unit, movement_type,
+         after - (before or 0), before, after, reason, order_id, actor, now))
+
+
+@router.get("/stores/burger-house/stock-movements")
+def list_stock_movements() -> list[dict]:
+    _enabled()
+    with _db() as db:
+        return [dict(row) for row in db.execute("""SELECT * FROM demo_stock_movements
+            WHERE store_id='burger-house' ORDER BY id DESC LIMIT 100""")]
+
+
+@router.post("/stores/burger-house/stock-adjustments", status_code=201)
+def adjust_stock(payload: StockAdjustmentInput) -> dict:
+    _enabled()
+    reason = payload.reason.strip()
+    if len(reason) < 3 or (payload.movement_type != "count" and payload.quantity == 0):
+        raise HTTPException(status_code=422, detail="Informe motivo e quantidade positiva")
+    table, key, limit = (("demo_menu_items", "product_id", 1000000)
+                         if payload.item_kind == "product" else
+                         ("demo_ingredients", "ingredient_id", 100000000))
+    with _db() as db:
+        db.execute("BEGIN IMMEDIATE")
+        row = db.execute(f"SELECT * FROM {table} WHERE store_id='burger-house' AND {key}=?",
+                         (payload.item_id,)).fetchone()
+        if row is None:
+            raise HTTPException(status_code=404, detail="Stock item not found")
+        before = row["stock_quantity"]
+        if before is None and payload.movement_type != "count":
+            raise HTTPException(status_code=409, detail="Define a counted balance first")
+        after = (payload.quantity if payload.movement_type == "count" else
+                 before + (payload.quantity if payload.movement_type == "restock" else -payload.quantity))
+        if after < 0 or after > limit:
+            raise HTTPException(status_code=409, detail="Stock balance outside allowed range")
+        now = datetime.now(timezone.utc).isoformat()
+        db.execute(f"UPDATE {table} SET stock_quantity=?, updated_at=? WHERE store_id='burger-house' AND {key}=?",
+                   (after, now, payload.item_id))
+        if payload.item_kind == "product":
+            old = _menu_item(row)
+            _log_menu_event(db, "stock_adjusted", old,
+                            dict(old, stock_quantity=after), now)
+        _log_stock_movement(db, payload.item_kind, payload.item_id, row["name"],
+                            "un" if payload.item_kind == "product" else row["unit"],
+                            payload.movement_type, before, after, reason,
+                            "management_local", now)
+        return dict(db.execute("SELECT * FROM demo_stock_movements WHERE id=last_insert_rowid()").fetchone())
+
+
+@router.get("/stores/burger-house/menu-events")
+def list_menu_events() -> list[dict]:
+    _enabled()
+    with _db() as db:
+        events = []
+        for row in db.execute("""SELECT * FROM demo_menu_events
+            WHERE store_id='burger-house' ORDER BY id DESC LIMIT 50"""):
+            event = dict(row)
+            event["changes"] = json.loads(event.pop("changes_json"))
+            events.append(event)
+        return events
+
+
+@router.get("/stores/burger-house/ingredients")
+def list_ingredients() -> list[dict]:
+    _enabled()
+    with _db() as db:
+        return [dict(row) for row in db.execute("""SELECT * FROM demo_ingredients
+            WHERE store_id='burger-house' ORDER BY name, ingredient_id""")]
+
+
+@router.post("/stores/burger-house/ingredients", status_code=201)
+def create_ingredient(payload: IngredientInput) -> dict:
+    _enabled()
+    if len(payload.name.strip()) < 2:
+        raise HTTPException(status_code=422, detail="Ingredient name is required")
+    with _db() as db:
+        if db.execute("SELECT 1 FROM demo_ingredients WHERE store_id='burger-house' AND ingredient_id=?",
+                      (payload.ingredient_id,)).fetchone():
+            raise HTTPException(status_code=409, detail="Ingredient ID already exists")
+        now = datetime.now(timezone.utc).isoformat()
+        db.execute("""INSERT INTO demo_ingredients
+            (store_id, ingredient_id, name, unit, stock_quantity, updated_at)
+            VALUES ('burger-house', ?, ?, ?, ?, ?)""",
+            (payload.ingredient_id, payload.name.strip(), payload.unit,
+             payload.stock_quantity, now))
+        _log_stock_movement(db, "ingredient", payload.ingredient_id, payload.name.strip(),
+                            payload.unit, "initial", 0, payload.stock_quantity,
+                            "Saldo inicial do cadastro", "management_local", now)
+        return dict(db.execute("""SELECT * FROM demo_ingredients
+            WHERE store_id='burger-house' AND ingredient_id=?""",
+            (payload.ingredient_id,)).fetchone())
+
+
+@router.put("/stores/burger-house/ingredients/{ingredient_id}")
+def update_ingredient(ingredient_id: str, payload: IngredientInput) -> dict:
+    _enabled()
+    if len(payload.name.strip()) < 2:
+        raise HTTPException(status_code=422, detail="Ingredient name is required")
+    if ingredient_id != payload.ingredient_id:
+        raise HTTPException(status_code=422, detail="Ingredient ID cannot be changed")
+    with _db() as db:
+        db.execute("BEGIN IMMEDIATE")
+        previous = db.execute("""SELECT * FROM demo_ingredients
+            WHERE store_id='burger-house' AND ingredient_id=?""", (ingredient_id,)).fetchone()
+        if previous is None:
+            raise HTTPException(status_code=404, detail="Ingredient not found")
+        if previous["unit"] != payload.unit:
+            raise HTTPException(status_code=422, detail="Ingredient unit cannot be changed")
+        if payload.expected_updated_at is not None and previous["updated_at"] != payload.expected_updated_at:
+            raise HTTPException(status_code=409, detail="Ingredient changed; refresh before editing")
+        now = datetime.now(timezone.utc).isoformat()
+        db.execute("""UPDATE demo_ingredients SET name=?, stock_quantity=?, updated_at=?
+            WHERE store_id='burger-house' AND ingredient_id=?""",
+            (payload.name.strip(), payload.stock_quantity, now, ingredient_id))
+        if previous["stock_quantity"] != payload.stock_quantity:
+            _log_stock_movement(db, "ingredient", ingredient_id, payload.name.strip(),
+                                payload.unit, "manual_edit", previous["stock_quantity"],
+                                payload.stock_quantity, "Edição do cadastro local", "management_local", now)
+        return dict(db.execute("""SELECT * FROM demo_ingredients
+            WHERE store_id='burger-house' AND ingredient_id=?""", (ingredient_id,)).fetchone())
+
+
+def _payment_methods(db: sqlite3.Connection) -> list[str]:
+    row = db.execute("SELECT methods_json FROM demo_store_payment_settings WHERE store_id='burger-house'").fetchone()
+    return json.loads(row["methods_json"]) if row else DEFAULT_PAYMENT_METHODS.copy()
+
+
+@router.get("/stores/burger-house/payment-methods")
+def get_payment_methods() -> dict:
+    _enabled()
+    with _db() as db:
+        return {"methods": _payment_methods(db)}
+
+
+@router.put("/stores/burger-house/payment-methods")
+def save_payment_methods(payload: PaymentMethodsInput) -> dict:
+    _enabled()
+    if len(payload.methods) != len(set(payload.methods)):
+        raise HTTPException(status_code=422, detail="Payment methods must be unique")
+    with _db() as db:
+        db.execute("""INSERT INTO demo_store_payment_settings (store_id, methods_json, updated_at)
+            VALUES ('burger-house', ?, ?)
+            ON CONFLICT(store_id) DO UPDATE SET methods_json=excluded.methods_json, updated_at=excluded.updated_at""",
+            (json.dumps(payload.methods), datetime.now(timezone.utc).isoformat()))
+    return {"methods": payload.methods}
+
+
+def _validate_image(image_ref: str) -> None:
+    uploaded = re.fullmatch(r"/api/v1/local/uploads/[0-9a-f]{64}\.(png|jpg|webp)", image_ref)
+    if image_ref and not uploaded and image_ref not in {"assets/images/burger.png", "assets/images/pizza.png", "assets/images/sushi.png"} and not re.fullmatch(r"https://[^\s]+", image_ref):
+        raise HTTPException(status_code=422, detail="Use an HTTPS image URL or a bundled demo image")
+
+
+@router.get("/stores/burger-house/menu")
+def list_menu() -> list[dict]:
+    _enabled()
+    with _db() as db:
+        stocks = _ingredient_stocks(db)
+        items = [_menu_item(row) for row in db.execute(
+            "SELECT * FROM demo_menu_items WHERE store_id='burger-house' ORDER BY sort_order, product_id").fetchall()]
+        for item in items:
+            item["orderable"] = _orderable(item, stocks)
+        return items
+
+
+@router.put("/stores/burger-house/menu-order")
+def reorder_menu(payload: MenuOrderInput) -> list[dict]:
+    _enabled()
+    with _db() as db:
+        db.execute("BEGIN IMMEDIATE")
+        current = {row["product_id"] for row in db.execute(
+            "SELECT product_id FROM demo_menu_items WHERE store_id='burger-house'")}
+        if len(payload.product_ids) != len(current) or set(payload.product_ids) != current:
+            raise HTTPException(status_code=422, detail="Provide every Burger House product exactly once")
+        now = datetime.now(timezone.utc).isoformat()
+        before = {row["product_id"]: _menu_item(row) for row in db.execute(
+            "SELECT * FROM demo_menu_items WHERE store_id='burger-house'")}
+        for position, product_id in enumerate(payload.product_ids):
+            db.execute("UPDATE demo_menu_items SET sort_order=?, updated_at=? WHERE store_id='burger-house' AND product_id=?",
+                       (position, now, product_id))
+            if before[product_id]["sort_order"] != position:
+                after = dict(before[product_id], sort_order=position)
+                _log_menu_event(db, "reordered", before[product_id], after, now)
+        return [_menu_item(row) for row in db.execute(
+            "SELECT * FROM demo_menu_items WHERE store_id='burger-house' ORDER BY sort_order, product_id")]
+
+
+@router.post("/stores/burger-house/menu", status_code=201)
+def create_menu_item(payload: MenuItemInput) -> dict:
+    _enabled()
+    _validate_image(payload.image_ref)
+    _validate_addons(payload.addons)
+    with _db() as db:
+        _validate_recipe(db, payload.recipe)
+        if db.execute("SELECT 1 FROM demo_menu_items WHERE store_id='burger-house' AND product_id=?", (payload.product_id,)).fetchone():
+            raise HTTPException(status_code=409, detail="Product ID already exists")
+        sort_order = db.execute("SELECT COALESCE(MAX(sort_order), -1) + 1 FROM demo_menu_items WHERE store_id='burger-house'").fetchone()[0]
+        db.execute("""INSERT INTO demo_menu_items
+            (store_id, product_id, name, description, category, price_cents, image_ref, addons_json, recipe_json, available, stock_quantity, promo_percent, sort_order, updated_at)
+            VALUES ('burger-house', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (payload.product_id, payload.name, payload.description, payload.category, payload.price_cents,
+             payload.image_ref, json.dumps([addon.model_dump() for addon in payload.addons], ensure_ascii=False),
+             json.dumps([part.model_dump() for part in payload.recipe], ensure_ascii=False),
+             payload.available, payload.stock_quantity, payload.promo_percent, sort_order, datetime.now(timezone.utc).isoformat()))
+        row = db.execute("SELECT * FROM demo_menu_items WHERE store_id='burger-house' AND product_id=?", (payload.product_id,)).fetchone()
+        item = _menu_item(row)
+        _log_menu_event(db, "created", None, item, item["updated_at"])
+        if item["stock_quantity"] is not None:
+            _log_stock_movement(db, "product", item["product_id"], item["name"], "un",
+                                "initial", 0, item["stock_quantity"],
+                                "Saldo inicial do cadastro", "management_local", item["updated_at"])
+        return item
+
+
+@router.put("/stores/burger-house/menu/{product_id}")
+def update_menu_item(product_id: str, payload: MenuItemInput) -> dict:
+    _enabled()
+    if product_id != payload.product_id:
+        raise HTTPException(status_code=422, detail="Product ID cannot be changed")
+    _validate_image(payload.image_ref)
+    _validate_addons(payload.addons)
+    with _db() as db:
+        db.execute("BEGIN IMMEDIATE")
+        previous = db.execute("SELECT * FROM demo_menu_items WHERE store_id='burger-house' AND product_id=?", (product_id,)).fetchone()
+        if previous is None:
+            raise HTTPException(status_code=404, detail="Demo product not found")
+        if payload.expected_updated_at is not None and previous["updated_at"] != payload.expected_updated_at:
+            raise HTTPException(status_code=409, detail="Product changed; refresh before editing")
+        stock_quantity = (payload.stock_quantity if "stock_quantity" in payload.model_fields_set
+                          else previous["stock_quantity"])
+        recipe = (payload.recipe if "recipe" in payload.model_fields_set
+                  else [RecipePartInput(**part) for part in json.loads(previous["recipe_json"])])
+        _validate_recipe(db, recipe)
+        cursor = db.execute("""UPDATE demo_menu_items SET name=?, description=?, category=?, price_cents=?,
+            image_ref=?, addons_json=?, recipe_json=?, available=?, stock_quantity=?, promo_percent=?, updated_at=?
+            WHERE store_id='burger-house' AND product_id=?""",
+            (payload.name, payload.description, payload.category, payload.price_cents, payload.image_ref,
+             json.dumps([addon.model_dump() for addon in payload.addons], ensure_ascii=False),
+             json.dumps([part.model_dump() for part in recipe], ensure_ascii=False),
+             payload.available, stock_quantity, payload.promo_percent, datetime.now(timezone.utc).isoformat(), product_id))
+        if cursor.rowcount != 1:
+            raise HTTPException(status_code=404, detail="Demo product not found")
+        row = db.execute("SELECT * FROM demo_menu_items WHERE store_id='burger-house' AND product_id=?", (product_id,)).fetchone()
+        item = _menu_item(row)
+        _log_menu_event(db, "updated", _menu_item(previous), item, item["updated_at"])
+        if previous["stock_quantity"] != item["stock_quantity"] and item["stock_quantity"] is not None:
+            _log_stock_movement(db, "product", product_id, item["name"], "un",
+                                "manual_edit", previous["stock_quantity"], item["stock_quantity"],
+                                "Edição do cadastro local", "management_local", item["updated_at"])
+        return item
+
+
+@router.post("/uploads/images", status_code=201)
+def upload_local_image(payload: ImageUploadInput) -> dict:
+    _enabled()
+    try:
+        data = base64.b64decode(payload.data_base64, validate=True)
+    except (ValueError, binascii.Error):
+        raise HTTPException(status_code=422, detail="Imagem inválida") from None
+    if not data or len(data) > 5_000_000:
+        raise HTTPException(status_code=422, detail="Imagem deve ter no máximo 5 MB")
+    formats = {
+        "image/png": ("png", data.startswith(b"\x89PNG\r\n\x1a\n")),
+        "image/jpeg": ("jpg", data.startswith(b"\xff\xd8\xff")),
+        "image/webp": ("webp", data.startswith(b"RIFF") and data[8:12] == b"WEBP"),
+    }
+    selected = formats.get(payload.mime_type)
+    if selected is None or not selected[1]:
+        raise HTTPException(status_code=422, detail="Use PNG, JPEG ou WebP válido")
+    digest = hashlib.sha256(data).hexdigest()
+    filename = f"{digest}.{selected[0]}"
+    directory = _db_path().parent / "uploads"
+    directory.mkdir(parents=True, exist_ok=True)
+    path = directory / filename
+    if not path.exists():
+        path.write_bytes(data)
+    return {"image_ref": f"/api/v1/local/uploads/{filename}"}
+
+
+@router.get("/uploads/{filename}")
+def uploaded_local_image(filename: str) -> FileResponse:
+    _enabled()
+    match = re.fullmatch(r"[0-9a-f]{64}\.(png|jpg|webp)", filename)
+    if not match:
+        raise HTTPException(status_code=404, detail="Imagem não encontrada")
+    path = _db_path().parent / "uploads" / filename
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="Imagem não encontrada")
+    media_type = {"png": "image/png", "jpg": "image/jpeg", "webp": "image/webp"}[match.group(1)]
+    return FileResponse(path, media_type=media_type)
+
+
+@router.get("/images/{image_name}")
+def local_menu_image(image_name: str) -> FileResponse:
+    _enabled()
+    if image_name not in {"burger.png", "pizza.png", "sushi.png"}:
+        raise HTTPException(status_code=404, detail="Imagem local não encontrada")
+    path = Path(__file__).resolve().parents[3] / "apps" / "cliente" / "assets" / "images" / image_name
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="Imagem local não encontrada")
+    return FileResponse(path)
+
+
+@router.get("/tables/burger-house/{table_code}/qr.svg")
+def table_qr(table_code: str, request: Request) -> Response:
+    _enabled()
+    _table_code(table_code)
+    target = str(request.url_for("table_menu_page", table_code=table_code))
+    qr = qrcode.QRCode(border=3, box_size=8)
+    qr.add_data(target)
+    qr.make(fit=True)
+    output = BytesIO()
+    qr.make_image(image_factory=qrcode.image.svg.SvgPathImage).save(output)
+    return Response(output.getvalue(), media_type="image/svg+xml",
+                    headers={"Cache-Control": "no-store"})
+
+
+@router.get("/tables/burger-house/{table_code}/print")
+def printable_table_qr(table_code: str) -> HTMLResponse:
+    _enabled()
+    _table_code(table_code)
+    menu_url = f"/api/v1/local/mesa/burger-house/{table_code}"
+    qr_url = f"/api/v1/local/tables/burger-house/{table_code}/qr.svg"
+    body = (
+        '<header><h1>gog<span class="blue">dely.</span></h1>'
+        f'<strong>Burger House · Mesa {escape(table_code)}</strong></header>'
+        '<div class="card" style="text-align:center">'
+        '<h2>Escaneie para abrir o cardápio</h2>'
+        f'<img src="{qr_url}" alt="QR da Mesa {escape(table_code)}"'
+        ' style="width:min(100%,300px);height:auto">'
+        f'<p><a href="{menu_url}">Abrir cardápio da Mesa {escape(table_code)}</a></p>'
+        '<small>Prévia local: o QR aponta para o computador que executa a API.</small></div>'
+        '<button onclick="window.print()">Imprimir ficha da mesa</button>'
+    )
+    return _html_page(f"QR Mesa {table_code}", body)
+
+
+@router.get("/mesa/burger-house/{table_code}", name="table_menu_page")
+def table_menu_page(table_code: str) -> HTMLResponse:
+    _enabled()
+    _table_code(table_code)
+    with _db() as db:
+        stocks = _ingredient_stocks(db)
+        items = [_menu_item(row) for row in db.execute(
+            "SELECT * FROM demo_menu_items WHERE store_id='burger-house' ORDER BY sort_order, product_id")]
+        items = [item for item in items if _orderable(item, stocks)]
+    cards = []
+    for item in items:
+        image_ref = item["image_ref"]
+        if image_ref.startswith("assets/images/"):
+            image_ref = f"/api/v1/local/images/{image_ref.rsplit('/', 1)[-1]}"
+        image = f'<img src="{escape(image_ref, quote=True)}" alt="">' if image_ref else ""
+        promo = f' · {item["promo_percent"]}% OFF' if item["promo_percent"] else ""
+        addons = "".join(
+            f'<label style="display:block"><input type="checkbox" name="extra_{escape(item["product_id"], quote=True)}"'
+            f' value="{escape(addon["name"], quote=True)}"> {escape(addon["name"])}'
+            f' (+{_money(addon["price_cents"])})</label>'
+            for addon in item["addons"])
+        cards.append(
+            f'<div class="card row">{image}<div><strong>{escape(item["name"])}</strong>'
+            f'<br><small>{escape(item["category"])}{promo}</small>'
+            f'<p>{escape(item["description"])}</p>'
+            f'<strong>{_money(item["effective_price_cents"])}</strong>{addons}</div>'
+            f'<label>Qtd.<br><input type="number" name="qty_{escape(item["product_id"], quote=True)}"'
+            ' min="0" max="50" value="0" inputmode="numeric"></label></div>'
+        )
+    body = (
+        f'<header><h1>gog<span class="blue">dely.</span></h1>'
+        f'<strong>Burger House · Mesa {escape(table_code)}</strong><br>'
+        '<small>Cardápio local de demonstração · sem pagamento real</small></header>'
+        '<h2>Escolha seus produtos</h2>'
+        f'<form method="post" action="/api/v1/local/mesa/burger-house/{escape(table_code, quote=True)}/pedidos">'
+        f'<input type="hidden" name="request_key" value="{uuid4()}">'
+        + "".join(cards) +
+        '<p><small>O pedido será enviado à fila da cozinha com o número da mesa e horário.</small></p>'
+        '<button type="submit">Enviar pedido da mesa</button></form>'
+    )
+    return _html_page(f"Cardápio Mesa {table_code}", body)
+
+
+@router.post("/mesa/burger-house/{table_code}/pedidos")
+async def create_table_order(table_code: str, request: Request) -> RedirectResponse:
+    _enabled()
+    _table_code(table_code)
+    raw = await request.body()
+    if len(raw) > 16384:
+        raise HTTPException(status_code=413, detail="Formulário muito grande")
+    try:
+        form = parse_qs(raw.decode("utf-8"), keep_blank_values=True, strict_parsing=True)
+        request_key = UUID(form["request_key"][0])
+    except (UnicodeDecodeError, ValueError, KeyError, IndexError):
+        raise HTTPException(status_code=422, detail="Formulário inválido") from None
+    with _db() as db:
+        stocks = _ingredient_stocks(db)
+        addon_by_id = {
+            item["product_id"]: {addon["name"] for addon in item["addons"]}
+            for item in (_menu_item(row) for row in db.execute(
+                "SELECT * FROM demo_menu_items WHERE store_id='burger-house'"))
+            if _orderable(item, stocks)
+        }
+    selected = []
+    for product_id in sorted(addon_by_id):
+        values = form.get(f"qty_{product_id}", ["0"])
+        if len(values) != 1 or not re.fullmatch(r"\d{1,2}", values[0]):
+            raise HTTPException(status_code=422, detail="Quantidade inválida")
+        quantity = int(values[0])
+        if quantity > 50:
+            raise HTTPException(status_code=422, detail="Quantidade inválida")
+        if quantity:
+            extras = form.get(f"extra_{product_id}", [])
+            if (len(extras) > 10 or len(set(extras)) != len(extras) or
+                    any(extra not in addon_by_id[product_id] for extra in extras)):
+                raise HTTPException(status_code=422, detail="Adicional inválido")
+            selected.append(ItemInput(product_id=product_id, quantity=quantity, extras=extras))
+    if not selected or len(selected) > 30:
+        raise HTTPException(status_code=422, detail="Escolha de 1 a 30 produtos")
+    order = _create_order(OrderInput(
+        request_key=request_key, store_id="burger-house",
+        address_label=f"Mesa {table_code}", items=selected), table_code=table_code)
+    return RedirectResponse(
+        url=f"/api/v1/local/mesa/burger-house/{table_code}/pedidos/{order['id']}",
+        status_code=303)
+
+
+@router.get("/mesa/burger-house/{table_code}/pedidos/{order_id}")
+def table_order_receipt(table_code: str, order_id: int) -> HTMLResponse:
+    _enabled()
+    _table_code(table_code)
+    with _db() as db:
+        row = db.execute("""SELECT * FROM demo_orders
+            WHERE id=? AND store_id='burger-house' AND table_code=? AND order_channel='table'""",
+            (order_id, table_code)).fetchone()
+    if row is None:
+        raise HTTPException(status_code=404, detail="Pedido da mesa não encontrado")
+    order = _order(row)
+    created = datetime.fromisoformat(order["created_at"]).astimezone().strftime("%d/%m/%Y às %H:%M")
+    labels = {"created": "Recebido", "preparing": "Em preparo", "ready": "Pronto",
+              "served": "Servido", "cancelled": "Cancelado"}
+    lines = "".join(
+        f'<li>{item["quantity"]} × {escape(item["name"])}'
+        f'{(" · " + escape(", ".join(item["extras"]))) if item["extras"] else ""}'
+        f' · {_money(item["unit_cents"] * item["quantity"])}</li>'
+        for item in order["items"])
+    body = (
+        '<header><h1>Pedido recebido</h1>'
+        f'<strong>Burger House · Mesa {escape(table_code)}</strong></header>'
+        f'<div class="card"><h2>Pedido #{order_id}</h2><p>{created}</p>'
+        f'<p>Status: <strong>{escape(labels.get(order["status"], order["status"]))}</strong></p>'
+        f'<ul>{lines}</ul><strong>Total estimado: {_money(order["total_cents"])}</strong>'
+        '<p><small>Sem pagamento real. Esta página atualiza o status automaticamente.</small></p></div>'
+    )
+    return _html_page(f"Pedido {order_id}", body, refresh=True)
+
+
+@router.get("/health")
+def local_health() -> dict:
+    _enabled()
+    with _db() as db:
+        db.execute("SELECT 1").fetchone()
+    return {"status": "ok", "storage": "sqlite-local-demo"}
+
+
+@router.post("/orders", status_code=201)
+def create_order(payload: OrderInput) -> dict:
+    return _create_order(payload)
+
+
+def _create_order(payload: OrderInput, table_code: str | None = None) -> dict:
+    _enabled()
+    store = CATALOG.get(payload.store_id)
+    if store is None:
+        raise HTTPException(status_code=422, detail="Unknown demo store")
+    store_name, products = store
+    order_channel = "table" if table_code else payload.order_channel
+    payment_method = "unselected" if table_code else payload.payment_method
+    address_label = f"Retirada na {store_name}" if order_channel == "pickup" else payload.address_label
+    request_key = str(payload.request_key)
+    with _db() as db:
+        existing = db.execute("SELECT * FROM demo_orders WHERE request_key=?", (request_key,)).fetchone()
+        if existing:
+            if not _same_order_request(existing, payload, table_code, order_channel, payment_method, address_label):
+                raise HTTPException(status_code=409, detail="Idempotency key reused with different order")
+            return _order(existing)
+    if payload.store_id == "burger-house":
+        with _db() as db:
+            products = {
+                row["product_id"]: (
+                    row["name"],
+                    row["price_cents"] * (100 - row["promo_percent"]) // 100,
+                    {addon["name"]: addon["price_cents"] for addon in json.loads(row["addons_json"])},
+                )
+                for row in db.execute("SELECT * FROM demo_menu_items WHERE store_id='burger-house' AND available=1")
+            }
+    resolved = []
+    subtotal = 0
+    for item in payload.items:
+        product = products.get(item.product_id)
+        if product is None or item.size not in {"Tradicional", "Média", "Grande"} or len(set(item.extras)) != len(item.extras):
+            raise HTTPException(status_code=422, detail="Invalid demo product or option")
+        if payload.store_id == "burger-house":
+            name, base_cents, addon_prices = product
+            if any(extra not in addon_prices for extra in item.extras):
+                raise HTTPException(status_code=422, detail="Invalid demo additional item")
+            extras_cents = sum(addon_prices[extra] for extra in item.extras)
+        else:
+            name, base_cents = product
+            if any(extra not in EXTRAS for extra in item.extras):
+                raise HTTPException(status_code=422, detail="Invalid demo additional item")
+            extras_cents = len(item.extras) * 300
+        unit_cents = base_cents + {"Tradicional": 0, "Média": 400, "Grande": 800}[item.size] + extras_cents
+        subtotal += unit_cents * item.quantity
+        resolved.append({"product_id": item.product_id, "name": name, "quantity": item.quantity, "size": item.size, "extras": item.extras, "unit_cents": unit_cents})
+    delivery_fee = 599 if order_channel == "delivery" else 0
+    now = datetime.now(timezone.utc).isoformat()
+    reserved: dict[str, int] = {}
+    ingredient_reserved: dict[str, int] = {}
+    pending_movements: list[tuple[str, str, str, str, int, int]] = []
+    with _db() as db:
+        db.execute("BEGIN IMMEDIATE")
+        existing = db.execute("SELECT * FROM demo_orders WHERE request_key=?", (request_key,)).fetchone()
+        if existing:
+            if not _same_order_request(existing, payload, table_code, order_channel, payment_method, address_label):
+                raise HTTPException(status_code=409, detail="Idempotency key reused with different order")
+            return _order(existing)
+        if (payload.store_id == "burger-house" and order_channel != "table" and
+                payment_method not in _payment_methods(db)):
+            raise HTTPException(status_code=422, detail="Payment method unavailable for Burger House")
+        if payload.store_id == "burger-house":
+            quantities: dict[str, int] = {}
+            for item in payload.items:
+                quantities[item.product_id] = quantities.get(item.product_id, 0) + item.quantity
+            current_items: dict[str, dict] = {}
+            for product_id, quantity in quantities.items():
+                before_row = db.execute("SELECT * FROM demo_menu_items WHERE store_id='burger-house' AND product_id=?", (product_id,)).fetchone()
+                if before_row is None or not before_row["available"]:
+                    raise HTTPException(status_code=409, detail="Product unavailable; refresh the menu")
+                before = _menu_item(before_row)
+                current_items[product_id] = before
+                if before["stock_quantity"] is None:
+                    continue
+                if before["stock_quantity"] < quantity:
+                    raise HTTPException(status_code=409, detail=f"Insufficient stock for {before['name']}")
+                db.execute("""UPDATE demo_menu_items SET stock_quantity=stock_quantity-?, updated_at=?
+                    WHERE store_id='burger-house' AND product_id=?""", (quantity, now, product_id))
+                after = dict(before, stock_quantity=before["stock_quantity"] - quantity)
+                _log_menu_event(db, "stock_deducted", before, after, now, actor="order_local")
+                reserved[product_id] = quantity
+                pending_movements.append(("product", product_id, before["name"], "un",
+                                          before["stock_quantity"], after["stock_quantity"]))
+            for requested, line in zip(payload.items, resolved):
+                current = current_items[requested.product_id]
+                addon_prices = {addon["name"]: addon["price_cents"] for addon in current["addons"]}
+                if any(extra not in addon_prices for extra in requested.extras):
+                    raise HTTPException(status_code=409, detail="Menu changed; refresh before ordering")
+                current_unit = (current["effective_price_cents"] +
+                                {"Tradicional": 0, "Média": 400, "Grande": 800}[requested.size] +
+                                sum(addon_prices[extra] for extra in requested.extras))
+                if line["name"] != current["name"] or line["unit_cents"] != current_unit:
+                    raise HTTPException(status_code=409, detail="Menu changed; refresh before ordering")
+                for part in current["recipe"]:
+                    ingredient_id = part["ingredient_id"]
+                    ingredient_reserved[ingredient_id] = (
+                        ingredient_reserved.get(ingredient_id, 0) +
+                        part["quantity"] * requested.quantity)
+            for ingredient_id, quantity in ingredient_reserved.items():
+                ingredient = db.execute("""SELECT * FROM demo_ingredients
+                    WHERE store_id='burger-house' AND ingredient_id=?""", (ingredient_id,)).fetchone()
+                if ingredient is None or ingredient["stock_quantity"] < quantity:
+                    label = ingredient["name"] if ingredient else ingredient_id
+                    raise HTTPException(status_code=409, detail=f"Insufficient ingredient stock: {label}")
+                db.execute("""UPDATE demo_ingredients SET stock_quantity=stock_quantity-?, updated_at=?
+                    WHERE store_id='burger-house' AND ingredient_id=?""", (quantity, now, ingredient_id))
+                pending_movements.append(("ingredient", ingredient_id, ingredient["name"],
+                                          ingredient["unit"], ingredient["stock_quantity"],
+                                          ingredient["stock_quantity"] - quantity))
+        cursor = db.execute("""INSERT INTO demo_orders
+            (request_key, store_id, store_name, address_label, items_json, subtotal_cents, delivery_fee_cents, total_cents, status, created_at, updated_at, table_code, order_channel, payment_method, pickup_code, delivery_code, dispatch_mode, stock_reserved_json, ingredient_reserved_json)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'created', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (request_key, payload.store_id, store_name, address_label, json.dumps(resolved, ensure_ascii=False), subtotal, delivery_fee, subtotal + delivery_fee, now, now, table_code, order_channel, payment_method,
+             f"{secrets.randbelow(1_000_000):06d}" if order_channel == "pickup" else None,
+             f"{secrets.randbelow(1_000_000):06d}" if order_channel == "delivery" else None,
+             "pending" if order_channel == "delivery" else "none", json.dumps(reserved),
+             json.dumps(ingredient_reserved)))
+        for kind, item_id, name, unit, before, after in pending_movements:
+            _log_stock_movement(db, kind, item_id, name, unit, "order_deduction",
+                                before, after, f"Pedido #{cursor.lastrowid}",
+                                "order_local", now, cursor.lastrowid)
+        db.execute("""INSERT INTO demo_order_events
+            (order_id, from_status, to_status, actor, reason, created_at)
+            VALUES (?, NULL, 'created', ?, '', ?)""",
+            (cursor.lastrowid, "table_guest" if table_code else "customer", now))
+        return _order(db.execute("SELECT * FROM demo_orders WHERE id=?", (cursor.lastrowid,)).fetchone())
+
+
+@router.get("/orders")
+def list_orders(store_id: str | None = None, status: str | None = None) -> list[dict]:
+    _enabled()
+    query = "SELECT * FROM demo_orders WHERE tenant_id='local-demo'"
+    params: list[str] = []
+    if store_id:
+        query += " AND store_id=?"
+        params.append(store_id)
+    if status:
+        query += " AND status=?"
+        params.append(status)
+    query += " ORDER BY id DESC LIMIT 100"
+    with _db() as db:
+        return [_order(row) for row in db.execute(query, params).fetchall()]
+
+
+@router.get("/orders/{order_id}")
+def get_order(order_id: int) -> dict:
+    _enabled()
+    with _db() as db:
+        row = db.execute("SELECT * FROM demo_orders WHERE id=? AND tenant_id='local-demo'", (order_id,)).fetchone()
+        if row is None:
+            raise HTTPException(status_code=404, detail="Demo order not found")
+        return _order(row)
+
+
+@router.get("/orders/{order_id}/events")
+def order_events(order_id: int) -> list[dict]:
+    _enabled()
+    with _db() as db:
+        row = db.execute("SELECT id FROM demo_orders WHERE id=? AND tenant_id='local-demo'", (order_id,)).fetchone()
+        if row is None:
+            raise HTTPException(status_code=404, detail="Demo order not found")
+        return [dict(event) for event in db.execute(
+            "SELECT id, order_id, from_status, to_status, actor, reason, created_at FROM demo_order_events WHERE order_id=? ORDER BY id",
+            (order_id,))]
+
+
+@router.post("/orders/{order_id}/cancel")
+def cancel_order(order_id: int, payload: CancelInput) -> dict:
+    _enabled()
+    reason = payload.reason.strip()
+    if len(reason) < 3:
+        raise HTTPException(status_code=422, detail="Cancellation reason required")
+    with _db() as db:
+        db.execute("BEGIN IMMEDIATE")
+        row = db.execute("SELECT * FROM demo_orders WHERE id=? AND tenant_id='local-demo'", (order_id,)).fetchone()
+        if row is None:
+            raise HTTPException(status_code=404, detail="Demo order not found")
+        allowed = row["status"] == "created" or (payload.actor == "management" and row["status"] == "preparing")
+        if not allowed:
+            raise HTTPException(status_code=409, detail="Order can no longer be cancelled by this actor")
+        now = datetime.now(timezone.utc).isoformat()
+        cursor = db.execute("UPDATE demo_orders SET status='cancelled', updated_at=? WHERE id=? AND status=?",
+                            (now, order_id, row["status"]))
+        if cursor.rowcount != 1:
+            raise HTTPException(status_code=409, detail="Order changed; refresh")
+        if row["store_id"] == "burger-house":
+            for product_id, quantity in json.loads(row["stock_reserved_json"]).items():
+                before_row = db.execute("SELECT * FROM demo_menu_items WHERE store_id='burger-house' AND product_id=?", (product_id,)).fetchone()
+                if before_row is None or before_row["stock_quantity"] is None:
+                    continue
+                before = _menu_item(before_row)
+                db.execute("""UPDATE demo_menu_items SET stock_quantity=stock_quantity+?, updated_at=?
+                    WHERE store_id='burger-house' AND product_id=?""", (quantity, now, product_id))
+                after = dict(before, stock_quantity=before["stock_quantity"] + quantity)
+                _log_menu_event(db, "stock_restored", before, after, now, actor="cancellation_local")
+                _log_stock_movement(db, "product", product_id, before["name"], "un",
+                                    "cancellation_restore", before["stock_quantity"],
+                                    after["stock_quantity"], reason, "cancellation_local", now, order_id)
+            for ingredient_id, quantity in json.loads(row["ingredient_reserved_json"]).items():
+                ingredient = db.execute("""SELECT * FROM demo_ingredients
+                    WHERE store_id='burger-house' AND ingredient_id=?""", (ingredient_id,)).fetchone()
+                if ingredient is None:
+                    continue
+                db.execute("""UPDATE demo_ingredients SET stock_quantity=stock_quantity+?, updated_at=?
+                    WHERE store_id='burger-house' AND ingredient_id=?""", (quantity, now, ingredient_id))
+                _log_stock_movement(db, "ingredient", ingredient_id, ingredient["name"],
+                                    ingredient["unit"], "cancellation_restore",
+                                    ingredient["stock_quantity"], ingredient["stock_quantity"] + quantity,
+                                    reason, "cancellation_local", now, order_id)
+        db.execute("""INSERT INTO demo_order_events
+            (order_id, from_status, to_status, actor, reason, created_at)
+            VALUES (?, ?, 'cancelled', ?, ?, ?)""",
+            (order_id, row["status"], payload.actor, reason, now))
+        return _order(db.execute("SELECT * FROM demo_orders WHERE id=?", (order_id,)).fetchone())
+
+
+@router.post("/orders/{order_id}/dispatch-internal")
+def dispatch_internal_order(order_id: int) -> dict:
+    _enabled()
+    with _db() as db:
+        row = db.execute("SELECT * FROM demo_orders WHERE id=? AND tenant_id='local-demo'", (order_id,)).fetchone()
+        if row is None:
+            raise HTTPException(status_code=404, detail="Demo order not found")
+        if row["store_id"] != "burger-house" or row["order_channel"] != "delivery" or row["status"] != "ready":
+            raise HTTPException(status_code=409, detail="Only ready Burger House deliveries can be dispatched")
+        if row["dispatch_mode"] == "internal":
+            return _order(row)
+        if row["dispatch_mode"] != "pending":
+            raise HTTPException(status_code=409, detail="Order cannot be dispatched")
+        now = datetime.now(timezone.utc).isoformat()
+        cursor = db.execute("UPDATE demo_orders SET dispatch_mode='internal', updated_at=? WHERE id=? AND status='ready' AND dispatch_mode='pending'",
+                            (now, order_id))
+        if cursor.rowcount != 1:
+            raise HTTPException(status_code=409, detail="Order changed; refresh")
+        db.execute("""INSERT INTO demo_order_events
+            (order_id, from_status, to_status, actor, reason, created_at)
+            VALUES (?, 'ready', 'ready', 'management', 'Encaminhado ao entregador próprio', ?)""",
+            (order_id, now))
+        return _order(db.execute("SELECT * FROM demo_orders WHERE id=?", (order_id,)).fetchone())
+
+
+@router.patch("/orders/{order_id}/status")
+def update_status(order_id: int, payload: StatusInput) -> dict:
+    _enabled()
+    with _db() as db:
+        row = db.execute("SELECT * FROM demo_orders WHERE id=? AND tenant_id='local-demo'", (order_id,)).fetchone()
+        if row is None:
+            raise HTTPException(status_code=404, detail="Demo order not found")
+        expected = (("served", "management") if row["order_channel"] == "table" and row["status"] == "ready"
+                    else ("picked_up", "management") if row["order_channel"] == "pickup" and row["status"] == "ready"
+                    else None if row["order_channel"] != "delivery" and row["status"] == "ready"
+                    else NEXT_STATUS.get(row["status"]))
+        if expected != (payload.status, payload.actor):
+            raise HTTPException(status_code=409, detail="Invalid demo status transition")
+        if payload.status == "in_delivery" and row["dispatch_mode"] != "internal":
+            raise HTTPException(status_code=409, detail="Delivery has not been dispatched")
+        if payload.status == "picked_up" and payload.pickup_code != row["pickup_code"]:
+            raise HTTPException(status_code=409, detail="Pickup code does not match this order")
+        if payload.status == "delivered" and payload.delivery_code != row["delivery_code"]:
+            raise HTTPException(status_code=409, detail="Delivery code does not match this order")
+        now = datetime.now(timezone.utc).isoformat()
+        cursor = db.execute("UPDATE demo_orders SET status=?, updated_at=? WHERE id=? AND status=?", (payload.status, now, order_id, row["status"]))
+        if cursor.rowcount != 1:
+            raise HTTPException(status_code=409, detail="Order changed; refresh")
+        db.execute("""INSERT INTO demo_order_events
+            (order_id, from_status, to_status, actor, reason, created_at)
+            VALUES (?, ?, ?, ?, '', ?)""",
+            (order_id, row["status"], payload.status, payload.actor, now))
+        return _order(db.execute("SELECT * FROM demo_orders WHERE id=?", (order_id,)).fetchone())

@@ -1,2 +1,4 @@
 # GOGDELY Entregador
-Flutter Android/iOS — estrutura reservada; implementação não iniciada.
+Protótipo Flutter local para Android e Windows, com entregas, rota ilustrativa, detalhes, atualização de status, conclusão, ganhos e perfil. Com `GOGDELY_LOCAL_API=true`, Entregas consulta automaticamente a API local a cada 3 segundos enquanto a tela está aberta, mostrando somente pedidos prontos da Burger House e suas mudanças de status salvas no SQLite; os botões salvam os estados em entrega e entregue. Sem essa opção, usa somente dados em memória. Não acessa GPS, pedidos reais ou produção.
+
+No VS Code, abra a raiz `C:\Projetos\GOGDELY`, selecione `GOGDELY Entregador • Windows` em Executar e Depurar e pressione F5. Também é possível abrir somente `apps/entregador`; o arquivo `.vscode/launch.json` dessa pasta oferece o mesmo F5. Para abrir os três apps rapidamente com a API local, use `GOGDELY • Cliente + Gestão + Entregador (F5)` na raiz.

@@ -7,14 +7,16 @@ class MapDemoScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const sample = LatLng(-16.6869, -49.2648); // Coordenada fictícia para demonstração.
+    const sample =
+        LatLng(-16.6869, -49.2648); // Coordenada fictícia para demonstração.
     return Scaffold(
       appBar: AppBar(title: const Text('Mapa • Demonstração')),
       body: Column(
         children: [
           const Padding(
             padding: EdgeInsets.all(12),
-            child: Text('Marcador de teste. Sem rastreamento, GPS, geocodificação ou mapas de produção.'),
+            child: Text(
+                'Marcador de teste. Sem rastreamento, GPS, geocodificação ou mapas de produção.'),
           ),
           Expanded(
             child: FlutterMap(
@@ -25,11 +27,13 @@ class MapDemoScreen extends StatelessWidget {
                     point: sample,
                     width: 52,
                     height: 52,
-                    child: const Icon(Icons.location_on, color: Colors.red, size: 42),
+                    child: const Icon(Icons.location_on,
+                        color: Colors.red, size: 42),
                   ),
                 ]),
                 const RichAttributionWidget(attributions: [
-                  TextSourceAttribution('Dados demonstrativos — sem provedor de tiles configurado'),
+                  TextSourceAttribution(
+                      'Dados demonstrativos — sem provedor de tiles configurado'),
                 ]),
               ],
             ),

@@ -1,19 +1,35 @@
-# DESIGN_SYSTEM.md — GOGDELY v0.1
+# DESIGN_SYSTEM.md — GOGDELY v1.1
 
-**Status:** diretrizes aprovadas; identidade visual e tokens concretos pendentes. Não confundir exemplos com identidade definitiva.
+**Status:** direção visual Azul Elétrico + Grafite aprovada e aplicada aos protótipos locais. Complementa GOG-088; preserva o Documento Mestre e as decisões GOG-001 a GOG-141. As seções históricas abaixo indicam intenção inicial e as pendências de homologação.
+
+## Paleta aprovada
+
+| Token | Valor | Token | Valor |
+| --- | --- | --- | --- |
+| `brandPrimary` | `#2563EB` | `brandPrimaryHover` | `#1D4ED8` |
+| `brandAccent` | `#60A5FA` | `brandGraphite` | `#151B2B` |
+| `backgroundLight` | `#F2F5FF` | `backgroundDark` | `#101522` |
+| `surfaceLight` | `#FFFFFF` | `surfaceDark` | `#253047` |
+| `textPrimaryLight` | `#1E293B` | `textPrimaryDark` | `#F8FAFC` |
+| `textSecondaryLight` | `#64748B` | `textSecondaryDark` | `#B8C4DC` |
+| `borderLight` | `#DCE4F2` | `borderDark` | `#38455D` |
+
+Verde não integra marca, botões, navegação, badges, progresso ou confirmações positivas. Erros usam vermelho; alertas, âmbar; informação e confirmações, azul, sempre com texto/ícone. Tipografia: display 32/700, título 24/700, título secundário 20/600, subtítulo 16/600, corpo 14–16/400, legenda 12/400. Espaçamento: 4, 8, 12, 16, 24, 32, 48 px. Botões principais: 52 px; campos: mínimo 48 px; cards: raio 16 px; modais: 20 px; botões de ação: 12 px.
+
+`packages/design_system` centraliza o tema Flutter claro, escuro e automático. Cliente, Entregador e Gestão possuem protótipos locais navegáveis com dados fictícios e imagens originais. Inter será considerada somente após verificação de licença e compatibilidade; os protótipos usam a fonte nativa. O laboratório Cliente mostra iPhone, Android e tablet numa janela Windows, sem simular iOS nativo. Autenticação, mapa/GPS, pedidos, pagamentos, notificações e serviços de produção ainda não estão integrados. Acessibilidade completa e responsividade devem passar por validação visual e testes específicos antes da homologação.
 
 ## Princípios (GOG-087 a GOG-103)
 - Moderno, minimalista, profissional; temas claro, escuro e automático.
-- Paleta exclusiva ainda a definir; identidade própria de cada estabelecimento dentro de estrutura comum.
+- Paleta aprovada acima; identidade própria de cada estabelecimento dentro de estrutura comum.
 - Cliente: navegação por categorias, localização, promoções e recomendações.
 - Gestão: adaptativo para mouse, teclado e toque; KDS em cartões/lista.
 - Entregador: mapa/lista alternáveis. Master: dashboard e módulos configuráveis.
 - Acessibilidade avançada com testes automatizados e manuais; estrutura multilíngue, pt-BR inicial.
 - Preferências por usuário, empresa e função; notificações configuráveis.
 
-## Tokens a especificar (sem valores definitivos)
-- Cores: brand.primary/onPrimary/secondary, surface.default/raised, text.primary/secondary, status.success/warning/error/info.
-- Espaçamentos: 4, 8, 12, 16, 24, 32 (proposta sujeita a aprovação).
+## Tokens e componentes em evolução
+- Cores semânticas adicionais: estados de erro, alerta e informação, superfície e texto.
+- Espaçamentos: 4, 8, 12, 16, 24, 32, 48 px.
 - Raios: sm/md/lg/xl; tipografia: body/label/title/display; movimento: fast/normal/reduced.
 - Contraste e feedback nunca dependentes apenas de cor.
 
@@ -33,4 +49,4 @@ VS Code F5: prévia responsiva de iPhone/Android/tablet no Windows; laboratório
 Usar WCAG 2.2 AA como referência onde aplicável; validar leitores de tela, teclado, foco, escala de texto, contraste, alto zoom, tema escuro e redução de movimento. Homologação requer protótipos aprovados, tokens definidos, testes e evidências.
 
 ## Pendências
-Paleta, logo, tipografia e licença, iconografia, breakpoints, animações, limites de personalização, componentes implementados e métricas de acessibilidade por plataforma.
+Licença e compatibilidade da Inter, iconografia, breakpoints, animações, limites de personalização, componentes restantes e métricas de acessibilidade por plataforma.
