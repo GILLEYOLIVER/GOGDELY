@@ -446,6 +446,22 @@ class LocalDemoApi {
     ) as Map<String, dynamic>,
   );
 
+  Future<DemoOrder> createPosSale({
+    required String requestKey,
+    required List<Map<String, dynamic>> items,
+    required String paymentMethod,
+  }) async => DemoOrder.fromJson(
+    await _request(
+      'POST',
+      '/stores/burger-house/pos-sales',
+      body: {
+        'request_key': requestKey,
+        'items': items,
+        'payment_method': paymentMethod,
+      },
+    ) as Map<String, dynamic>,
+  );
+
   Future<DemoOrder> updateStatus(
     int id,
     String status,

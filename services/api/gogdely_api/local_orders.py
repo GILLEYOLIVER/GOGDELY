@@ -285,8 +285,14 @@ class OrderInput(BaseModel):
     store_id: str
     address_label: str = Field(min_length=3, max_length=160)
     items: list[ItemInput] = Field(min_length=1, max_length=30)
-    order_channel: Literal["delivery", "pickup"] = "delivery"
+    order_channel: Literal["delivery", "pickup", "counter"] = "delivery"
     payment_method: Literal["unselected", "cash", "pix", "card"] = "cash"
+
+
+class PosSaleInput(BaseModel):
+    request_key: UUID
+    items: list[ItemInput] = Field(min_length=1, max_length=30)
+    payment_method: Literal["cash", "pix", "card"]
 
 
 class PaymentMethodsInput(BaseModel):
@@ -878,7 +884,17 @@ def local_health() -> dict:
 
 @router.post("/orders", status_code=201)
 def create_order(payload: OrderInput) -> dict:
+    if payload.order_channel == "counter":
+        raise HTTPException(status_code=422, detail="Counter orders use the local POS endpoint")
     return _create_order(payload)
+
+
+@router.post("/stores/burger-house/pos-sales", status_code=201)
+def create_pos_sale(payload: PosSaleInput) -> dict:
+    return _create_order(OrderInput(
+        request_key=payload.request_key, store_id="burger-house",
+        address_label="Balcão Burger House", items=payload.items,
+        order_channel="counter", payment_method=payload.payment_method))
 
 
 def _create_order(payload: OrderInput, table_code: str | None = None) -> dict:
@@ -889,7 +905,8 @@ def _create_order(payload: OrderInput, table_code: str | None = None) -> dict:
     store_name, products = store
     order_channel = "table" if table_code else payload.order_channel
     payment_method = "unselected" if table_code else payload.payment_method
-    address_label = f"Retirada na {store_name}" if order_channel == "pickup" else payload.address_label
+    address_label = (f"Retirada na {store_name}" if order_channel == "pickup" else
+                     f"Balcão {store_name}" if order_channel == "counter" else payload.address_label)
     request_key = str(payload.request_key)
     with _db() as db:
         existing = db.execute("SELECT * FROM demo_orders WHERE request_key=?", (request_key,)).fetchone()
@@ -1004,7 +1021,8 @@ def _create_order(payload: OrderInput, table_code: str | None = None) -> dict:
         db.execute("""INSERT INTO demo_order_events
             (order_id, from_status, to_status, actor, reason, created_at)
             VALUES (?, NULL, 'created', ?, '', ?)""",
-            (cursor.lastrowid, "table_guest" if table_code else "customer", now))
+            (cursor.lastrowid, "table_guest" if table_code else
+             "management_pos" if order_channel == "counter" else "customer", now))
         return _order(db.execute("SELECT * FROM demo_orders WHERE id=?", (cursor.lastrowid,)).fetchone())
 
 
@@ -1128,7 +1146,7 @@ def update_status(order_id: int, payload: StatusInput) -> dict:
         row = db.execute("SELECT * FROM demo_orders WHERE id=? AND tenant_id='local-demo'", (order_id,)).fetchone()
         if row is None:
             raise HTTPException(status_code=404, detail="Demo order not found")
-        expected = (("served", "management") if row["order_channel"] == "table" and row["status"] == "ready"
+        expected = (("served", "management") if row["order_channel"] in {"table", "counter"} and row["status"] == "ready"
                     else ("picked_up", "management") if row["order_channel"] == "pickup" and row["status"] == "ready"
                     else None if row["order_channel"] != "delivery" and row["status"] == "ready"
                     else NEXT_STATUS.get(row["status"]))

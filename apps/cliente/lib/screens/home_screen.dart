@@ -238,7 +238,9 @@ class _HomeScreenState extends State<HomeScreen> {
     _refreshingOrders = true;
     final request = ++_ordersRefreshRequest;
     try {
-      final orders = await _localApi.orders(storeId: localDemoPilotStoreId);
+      final orders = (await _localApi.orders(storeId: localDemoPilotStoreId))
+          .where((order) => order.orderChannel != 'counter')
+          .toList();
       if (mounted &&
           request == _ordersRefreshRequest &&
           (_localError != null || !_sameOrders(_savedOrders, orders))) {

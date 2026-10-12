@@ -404,6 +404,42 @@ def test_local_stock_adjustments_and_movement_history(tmp_path, monkeypatch):
                 if item["ingredient_id"] == "carne")["stock_quantity"] == 80
 
 
+def test_local_counter_sale_uses_menu_stock_and_kitchen(tmp_path, monkeypatch):
+    monkeypatch.setenv("GOGDELY_ENV", "local")
+    monkeypatch.setenv("GOGDELY_LOCAL_DEMO", "1")
+    monkeypatch.setenv("GOGDELY_LOCAL_DB", str(tmp_path / "counter.sqlite3"))
+    client = TestClient(app)
+    base = "/api/v1/local/stores/burger-house"
+    assert client.post(f"{base}/stock-adjustments", json={
+        "item_kind": "product", "item_id": "x-tudo", "movement_type": "count",
+        "quantity": 2, "reason": "Saldo do balcão",
+    }).status_code == 201
+    payload = {"request_key": str(uuid4()), "payment_method": "cash",
+               "items": [{"product_id": "x-tudo", "quantity": 2}]}
+    assert client.post("/api/v1/local/orders", json={**payload,
+        "store_id": "burger-house", "address_label": "Balcão Burger House",
+        "order_channel": "counter"}).status_code == 422
+    url = f"{base}/pos-sales"
+    sale = client.post(url, json=payload)
+    assert sale.status_code == 201
+    order = sale.json()
+    assert (order["order_channel"], order["delivery_fee_cents"],
+            order["payment_status"], order["status"]) == (
+                "counter", 0, "not_processed", "created")
+    assert order["total_cents"] == 2 * 2890
+    assert client.post(url, json=payload).json()["id"] == order["id"]
+    assert next(item for item in client.get(f"{base}/menu").json()
+                if item["product_id"] == "x-tudo")["stock_quantity"] == 0
+    assert len([row for row in client.get(f"{base}/stock-movements").json()
+                if row["order_id"] == order["id"]]) == 1
+    assert client.post(url, json={**payload, "request_key": str(uuid4())}).status_code == 409
+    status_url = f"/api/v1/local/orders/{order['id']}/status"
+    for status in ("preparing", "ready", "served"):
+        response = client.patch(status_url, json={"status": status, "actor": "management"})
+        assert response.status_code == 200
+    assert client.get(f"/api/v1/local/orders/{order['id']}/events").json()[0]["actor"] == "management_pos"
+
+
 def test_table_qr_order_reaches_kitchen_without_delivery(tmp_path, monkeypatch):
     monkeypatch.setenv("GOGDELY_ENV", "local")
     monkeypatch.setenv("GOGDELY_LOCAL_DEMO", "1")

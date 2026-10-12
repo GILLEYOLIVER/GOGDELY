@@ -6,6 +6,7 @@ import 'package:gogdely_local_demo_api/gogdely_local_demo_api.dart';
 import 'stock_page.dart';
 import 'menu_editor.dart';
 import 'table_qr_page.dart';
+import 'pos_page.dart';
 
 void main() => runApp(const GestaoApp());
 
@@ -359,7 +360,7 @@ class _GestaoHomeState extends State<GestaoHome> {
         Card(
             child: ListTile(
           title: Text('#${order.id} · ${order.storeName}'
-              '${order.tableCode == null ? order.orderChannel == 'pickup' ? ' · Retirada' : ' · Entrega' : ' · Mesa ${order.tableCode}'}'),
+              '${order.tableCode != null ? ' · Mesa ${order.tableCode}' : order.orderChannel == 'pickup' ? ' · Retirada' : order.orderChannel == 'counter' ? ' · Balcão' : ' · Entrega'}'),
           subtitle: Text(
               '${order.items.map((item) => '${item.quantity} × ${item.name}').join(', ')}\n'
               '${_localOrderTime(order)}${demoStatusLabel(order.status)} · ${money(order.totalCents)}\n'
@@ -367,7 +368,8 @@ class _GestaoHomeState extends State<GestaoHome> {
           isThreeLine: true,
           trailing: Row(mainAxisSize: MainAxisSize.min, children: [
             ({'created', 'preparing'}.contains(order.status) ||
-                    ({'table', 'pickup'}.contains(order.orderChannel) &&
+                    ({'table', 'pickup', 'counter'}
+                            .contains(order.orderChannel) &&
                         order.status == 'ready') ||
                     (order.orderChannel == 'delivery' &&
                         order.status == 'ready' &&
@@ -387,7 +389,9 @@ class _GestaoHomeState extends State<GestaoHome> {
                                 ? 'Enviar ao Entregador'
                                 : order.orderChannel == 'pickup'
                                     ? 'Entregar na loja'
-                                    : 'Servir mesa'),
+                                    : order.orderChannel == 'counter'
+                                        ? 'Entregar no balcão'
+                                        : 'Servir mesa'),
                   )
                 : _statusPill(order.status == 'ready' &&
                         order.orderChannel == 'delivery' &&
@@ -823,77 +827,81 @@ class _GestaoHomeState extends State<GestaoHome> {
               style: TextStyle(fontSize: 11)),
         ]);
 
-  Widget _pos() => _scroll([
-        const Text('Ponto de venda demonstrativo',
-            style: TextStyle(fontSize: 12)),
-        const SizedBox(height: 12),
-        Wrap(spacing: 10, runSpacing: 10, children: [
-          for (final (name, image, price) in [
-            ('X-Tudo', 'assets/images/burger.png', 'R\$ 28,90'),
-            ('Batata Especial', '', 'R\$ 18,90'),
-            ('Refrigerante Lata', '', 'R\$ 6,90'),
-          ])
-            SizedBox(
-                width: 135,
-                child: Card(
-                    child: InkWell(
-                  onTap: () => setState(() => saleItems.add(name)),
-                  child: Padding(
-                      padding: const EdgeInsets.all(9),
-                      child: Column(children: [
-                        image.isEmpty
-                            ? const SizedBox(
-                                height: 65,
-                                child: Icon(Icons.shopping_bag_outlined,
-                                    size: 35, color: GogdelyColors.blue))
-                            : ClipRRect(
-                                borderRadius: BorderRadius.circular(8),
-                                child: Image.asset(image,
-                                    width: 115, height: 65, fit: BoxFit.cover)),
-                        const SizedBox(height: 5),
-                        Text(name,
-                            style:
-                                const TextStyle(fontWeight: FontWeight.w700)),
-                        Text(price, style: const TextStyle(fontSize: 11)),
-                      ])),
-                ))),
-        ]),
-        _label('Venda local'),
-        Card(
-            child: Padding(
-                padding: const EdgeInsets.all(15),
-                child: Column(children: [
-                  if (saleItems.isEmpty)
-                    const Text('Selecione um produto para começar'),
-                  for (final item in saleItems)
-                    ListTile(
-                        title: Text(item),
-                        trailing: IconButton(
-                            tooltip: 'Remover $item',
-                            icon: const Icon(Icons.close),
-                            onPressed: () =>
-                                setState(() => saleItems.remove(item)))),
-                  const Divider(),
-                  Row(children: [
-                    const Text('Total',
-                        style: TextStyle(fontWeight: FontWeight.w800)),
-                    const Spacer(),
-                    Text(money(saleTotal),
-                        style: const TextStyle(fontWeight: FontWeight.w800))
-                  ]),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                      width: double.infinity,
-                      child: FilledButton(
-                          onPressed: saleItems.isEmpty
-                              ? null
-                              : () => ScaffoldMessenger.of(context)
-                                  .showSnackBar(const SnackBar(
-                                      content: Text(
-                                          'PDV fictício: nenhuma venda ou pagamento foi registrado.'))),
-                          child: const Text('Revisar venda fictícia'))),
-                ]))),
-      ]);
+  Widget _pos() => localDemoEnabled
+      ? PosPage(api: _localApi, onSaleCreated: _refreshLocalOrders)
+      : _scroll([
+          const Text('Ponto de venda demonstrativo',
+              style: TextStyle(fontSize: 12)),
+          const SizedBox(height: 12),
+          Wrap(spacing: 10, runSpacing: 10, children: [
+            for (final (name, image, price) in [
+              ('X-Tudo', 'assets/images/burger.png', 'R\$ 28,90'),
+              ('Batata Especial', '', 'R\$ 18,90'),
+              ('Refrigerante Lata', '', 'R\$ 6,90'),
+            ])
+              SizedBox(
+                  width: 135,
+                  child: Card(
+                      child: InkWell(
+                    onTap: () => setState(() => saleItems.add(name)),
+                    child: Padding(
+                        padding: const EdgeInsets.all(9),
+                        child: Column(children: [
+                          image.isEmpty
+                              ? const SizedBox(
+                                  height: 65,
+                                  child: Icon(Icons.shopping_bag_outlined,
+                                      size: 35, color: GogdelyColors.blue))
+                              : ClipRRect(
+                                  borderRadius: BorderRadius.circular(8),
+                                  child: Image.asset(image,
+                                      width: 115,
+                                      height: 65,
+                                      fit: BoxFit.cover)),
+                          const SizedBox(height: 5),
+                          Text(name,
+                              style:
+                                  const TextStyle(fontWeight: FontWeight.w700)),
+                          Text(price, style: const TextStyle(fontSize: 11)),
+                        ])),
+                  ))),
+          ]),
+          _label('Venda local'),
+          Card(
+              child: Padding(
+                  padding: const EdgeInsets.all(15),
+                  child: Column(children: [
+                    if (saleItems.isEmpty)
+                      const Text('Selecione um produto para começar'),
+                    for (final item in saleItems)
+                      ListTile(
+                          title: Text(item),
+                          trailing: IconButton(
+                              tooltip: 'Remover $item',
+                              icon: const Icon(Icons.close),
+                              onPressed: () =>
+                                  setState(() => saleItems.remove(item)))),
+                    const Divider(),
+                    Row(children: [
+                      const Text('Total',
+                          style: TextStyle(fontWeight: FontWeight.w800)),
+                      const Spacer(),
+                      Text(money(saleTotal),
+                          style: const TextStyle(fontWeight: FontWeight.w800))
+                    ]),
+                    const SizedBox(height: 12),
+                    SizedBox(
+                        width: double.infinity,
+                        child: FilledButton(
+                            onPressed: saleItems.isEmpty
+                                ? null
+                                : () => ScaffoldMessenger.of(context)
+                                    .showSnackBar(const SnackBar(
+                                        content: Text(
+                                            'PDV fictício: nenhuma venda ou pagamento foi registrado.'))),
+                            child: const Text('Revisar venda fictícia'))),
+                  ]))),
+        ]);
 
   Widget _reports() => _scroll([
         const Text('Relatórios ilustrativos', style: TextStyle(fontSize: 12)),
