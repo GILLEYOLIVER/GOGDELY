@@ -1050,12 +1050,24 @@ class _HomeScreenState extends State<HomeScreen> {
                   }
                 }),
         ]),
-        _sectionTitle('Destaques'),
+        _sectionTitle('Cardápio'),
         if (localDemoEnabled && _menuError != null) Text(_menuError!),
         if (localDemoEnabled && store.products.isEmpty)
           const Text('Nenhum produto disponível no momento. Consulte a loja.'),
-        for (final value in store.products)
-          DemoProductTile(value, onTap: () => openProduct(value)),
+        if (!localDemoEnabled)
+          for (final value in store.products)
+            DemoProductTile(value, onTap: () => openProduct(value)),
+        // GOG-016: as subcategorias da empresa guiam a navegação do cardápio.
+        if (localDemoEnabled)
+          for (final category in store.products
+              .map((product) => product.category)
+              .toSet()
+              .toList()) ...[
+            _sectionTitle(category),
+            for (final value in store.products
+                .where((product) => product.category == category))
+              DemoProductTile(value, onTap: () => openProduct(value)),
+          ],
         const SizedBox(height: 16),
         if (itemCount > 0)
           FilledButton.icon(
@@ -1927,7 +1939,10 @@ class _HomeScreenState extends State<HomeScreen> {
             child: ListTile(
           leading: const Icon(Icons.place, color: GogdelyColors.blue),
           title: Text(addressLabel),
-          subtitle: const Text('Centro, São Paulo · endereço fictício'),
+          subtitle: const Text(
+              'Usado nos pedidos locais de entrega · edite para o próximo pedido'),
+          trailing: const Icon(Icons.edit_outlined),
+          onTap: _editAddress,
         )),
         const SizedBox(height: 16),
         FilledButton(
@@ -1939,6 +1954,41 @@ class _HomeScreenState extends State<HomeScreen> {
         const Text('Sem geolocalização ou geocodificação real.',
             textAlign: TextAlign.center, style: TextStyle(fontSize: 11)),
       ]);
+
+  /// GOG-015/018 no laboratório: o endereço salvo é usado pelo checkout local.
+  Future<void> _editAddress() async {
+    final controller = TextEditingController(text: addressLabel);
+    final label = await showDialog<String>(
+        context: context,
+        builder: (context) => AlertDialog(
+              title: const Text('Editar endereço de entrega'),
+              content: TextField(
+                  controller: controller,
+                  autofocus: true,
+                  maxLength: 160,
+                  decoration: const InputDecoration(
+                      labelText: 'Endereço completo',
+                      helperText: 'Mínimo 3 caracteres. Simulação local.')),
+              actions: [
+                TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Voltar')),
+                FilledButton(
+                    onPressed: () {
+                      if (controller.text.trim().length >= 3) {
+                        Navigator.pop(context, controller.text.trim());
+                      }
+                    },
+                    child: const Text('Salvar endereço')),
+              ],
+            ));
+    controller.dispose();
+    if (label == null || label == addressLabel) return;
+    if (!mounted) return;
+    setState(() => addressLabel = label);
+    ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Endereço salvo para os próximos pedidos.')));
+  }
 
   Widget _settingsPage() => _list([
         const Text('Tema do aplicativo',
