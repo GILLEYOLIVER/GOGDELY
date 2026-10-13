@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io' show Platform, Process;
 
 import 'package:flutter/material.dart';
 import 'package:gogdely_design_system/gogdely_design_system.dart';
@@ -435,6 +436,27 @@ class _GestaoHomeState extends State<GestaoHome> {
     }
   }
 
+  /// GOG-031 local: opens the printable kitchen ticket in the default browser.
+  void _openComanda(DemoOrder order) {
+    final url = '$localDemoBaseUrl/api/v1/local/orders/${order.id}/comanda';
+    unawaited(_launchUrl(url));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(
+            'Comanda #${order.id} aberta no navegador para impressão local. $url')));
+  }
+
+  Future<void> _launchUrl(String url) async {
+    try {
+      if (Platform.isWindows) {
+        await Process.run('cmd', ['/c', 'start', '', url]);
+      } else if (Platform.isMacOS) {
+        await Process.run('open', [url]);
+      }
+    } catch (_) {
+      // Abrir o navegador é best-effort; a URL também é exibida no aviso.
+    }
+  }
+
   String _localOrderTime(DemoOrder order) {
     final date = DateTime.tryParse(order.createdAt)?.toLocal();
     if (date == null) return '';
@@ -538,16 +560,18 @@ class _GestaoHomeState extends State<GestaoHome> {
                     : demoStatusLabel(order.status)),
             PopupMenuButton<String>(
               tooltip: 'Ações do pedido',
-              onSelected: (action) => action == 'history'
-                  ? _showOrderHistory(order)
-                  : action == 'priority'
-                      ? _setKitchenPriority(order)
-                      : action == 'simulate'
-                          ? _simulateLocalPayment(order)
-                          : _cancelLocalOrder(order),
+              onSelected: (action) => switch (action) {
+                    'history' => _showOrderHistory(order),
+                    'comanda' => _openComanda(order),
+                    'priority' => _setKitchenPriority(order),
+                    'simulate' => _simulateLocalPayment(order),
+                    _ => _cancelLocalOrder(order),
+                  },
               itemBuilder: (context) => [
                 const PopupMenuItem(
                     value: 'history', child: Text('Ver histórico')),
+                const PopupMenuItem(
+                    value: 'comanda', child: Text('Imprimir comanda')),
                 if (kitchenOnly &&
                     {'created', 'preparing'}.contains(order.status))
                   PopupMenuItem(

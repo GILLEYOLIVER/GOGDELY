@@ -631,3 +631,26 @@ def test_local_simulated_payment_is_explicit_idempotent_and_audited(tmp_path, mo
     other = create_order()
     assert simulate(other["id"], request_key=request_key).status_code == 409
     assert other["payment_status"] == "not_processed"
+
+
+def test_local_order_comanda_is_printable_and_private(tmp_path, monkeypatch):
+    monkeypatch.setenv("GOGDELY_ENV", "local")
+    monkeypatch.setenv("GOGDELY_LOCAL_DEMO", "1")
+    monkeypatch.setenv("GOGDELY_LOCAL_DB", str(tmp_path / "comanda.sqlite3"))
+    client = TestClient(app)
+    base = "/api/v1/local"
+    order = client.post(f"{base}/orders", json={
+        "request_key": str(uuid4()), "store_id": "burger-house",
+        "address_label": "Rua da Comanda, 5", "payment_method": "pix",
+        "items": [{"product_id": "x-tudo", "quantity": 2}],
+    }).json()
+
+    comanda = client.get(f"{base}/orders/{order['id']}/comanda")
+    assert comanda.status_code == 200
+    page = comanda.text
+    assert "Imprimir comanda" in page
+    assert f"Pedido #{order['id']}" in page
+    assert "2x" in page and "X-Tudo" in page
+    assert "sem valor fiscal" in page
+    assert 'name="robots" content="noindex, nofollow"' in page
+    assert client.get(f"{base}/orders/999999/comanda").status_code == 404

@@ -311,7 +311,8 @@ def _html_page(title: str, body: str, *, refresh: bool = False,
                description: str | None = None,
                canonical_path: str | None = None,
                indexable: bool = False,
-               jsonld: str = "") -> HTMLResponse:
+               jsonld: str = "",
+               extra_head: str = "") -> HTMLResponse:
     """SEO-ready HTML shell for the local pilot pages.
 
     GOG-020/026: pages stay `noindex` in the laboratory (operational data,
@@ -342,7 +343,7 @@ def _html_page(title: str, body: str, *, refresh: bool = False,
     return HTMLResponse(f"""<!doctype html><html lang="pt-BR"><head>
     <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
     {refresh_tag}<title>{escape(title)} · GOGDELY</title>
-    {seo_tags}
+    {seo_tags}{extra_head}
     <style>
     :root{{font-family:system-ui,sans-serif;color:#1e293b;background:#f2f5ff}}
     body{{max-width:640px;margin:0 auto;padding:20px 14px 48px}}
@@ -1555,6 +1556,45 @@ def burger_ratings() -> dict:
     _enabled()
     with _db() as db:
         return _ratings_summary(db, "burger-house")
+
+
+@router.get("/orders/{order_id}/comanda")
+def order_comanda(order_id: int) -> HTMLResponse:
+    """GOG-031 local: printable 80mm kitchen ticket for a demo order."""
+    _enabled()
+    with _db() as db:
+        row = db.execute("SELECT * FROM demo_orders WHERE id=? AND tenant_id='local-demo'",
+                         (order_id,)).fetchone()
+        if row is None:
+            raise HTTPException(status_code=404, detail="Demo order not found")
+        order = _order(row)
+    created = datetime.fromisoformat(order["created_at"]).astimezone().strftime("%d/%m/%Y %H:%M")
+    channel = {"delivery": "Entrega", "pickup": "Retirada",
+               "table": "Mesa", "counter": "Balcão"}[order["order_channel"]]
+    table = f" · Mesa {escape(order['table_code'])}" if order["table_code"] else ""
+    lines = "".join(
+        f'<tr><td>{item["quantity"]}x</td><td>{escape(item["name"])}'
+        f'{("<br><small>" + escape(", ".join(item["extras"])) + f' · {escape(item["size"])}</small>') if item["extras"] else ""}'
+        '</td><td style="text-align:right">—</td></tr>'
+        for item in order["items"])
+    body = (
+        '<div class="ticket">'
+        '<p style="text-align:center;font-weight:700">gogdely · comanda local</p>'
+        f'<p style="text-align:center">Burger House · {channel}{table}</p>'
+        f'<p>Pedido #{order["id"]} · {created}<br>Pagamento: '
+        f'{order["payment_method"]} · {order["payment_status"]}</p>'
+        f'<table style="width:100%">{lines}</table>'
+        f'<p style="font-weight:700">Total: {_money(order["total_cents"])}</p>'
+        '<p><small>Prioridade: ' + ("URGENTE" if order.get("kitchen_priority") == "urgent" else "normal")
+        + ' · Comprovante do laboratório, sem valor fiscal.</small></p></div>'
+        '<button onclick="window.print()">Imprimir comanda</button>'
+    )
+    styles = ("<style>.ticket{background:white;border:1px dashed #64748b;"
+              "border-radius:8px;padding:12px;max-width:300px;font-family:monospace}</style>")
+    return _html_page(f"Comanda {order_id}", body,
+                      description=f"Comanda local para impressão do pedido #{order_id}.",
+                      indexable=False,
+                      extra_head=styles)
 
 
 @router.post("/orders/{order_id}/dispatch-internal")
