@@ -89,6 +89,9 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _refreshingPaymentMethods = false;
   bool _paymentMethodsLoaded = false;
   String? _paymentMethodsError;
+  Map<String, dynamic>? _storeRatings;
+  bool _refreshingRatings = false;
+  final Set<int> _ratedOrderIds = {};
   String deliveryLabel = 'Padrão (25–35 min)';
   String _orderChannel = 'delivery';
   String addressLabel = 'Rua das Flores, 123';
@@ -122,7 +125,11 @@ class _HomeScreenState extends State<HomeScreen> {
       _refreshMenu();
     }
     if (localDemoEnabled && target == _Page.orders) _refreshOrders();
-    if (localDemoEnabled && target == _Page.tracking) _refreshOrder();
+    if (localDemoEnabled && target == _Page.tracking) {
+      _refreshOrder();
+      _refreshRatings();
+    }
+    if (localDemoEnabled && target == _Page.store) _refreshRatings();
     if (localDemoEnabled && target == _Page.checkout) _refreshPaymentMethods();
   }
 
@@ -149,6 +156,90 @@ class _HomeScreenState extends State<HomeScreen> {
       }
     } finally {
       _refreshingPaymentMethods = false;
+    }
+  }
+
+  Future<void> _refreshRatings() async {
+    if (_refreshingRatings) return;
+    _refreshingRatings = true;
+    try {
+      final ratings = await _localApi.storeRatings();
+      if (!mounted) return;
+      setState(() {
+        _storeRatings = ratings;
+        _ratedOrderIds
+          ..clear()
+          ..addAll((ratings['recent'] as List)
+              .whereType<Map<String, dynamic>>()
+              .map((entry) => entry['order_id'] as int));
+      });
+    } catch (_) {
+      // A avaliação é complemento no piloto; falha não bloqueia a navegação.
+    } finally {
+      _refreshingRatings = false;
+    }
+  }
+
+  /// GOG-022 no laboratório local: avalia um pedido concluído.
+  Future<void> _rateOrder(DemoOrder order) async {
+    var stars = 0;
+    final comment = TextEditingController();
+    final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (dialogContext) => StatefulBuilder(
+            builder: (dialogContext, setDialogState) => AlertDialog(
+                  title: Text('Avaliar pedido #${order.id}'),
+                  content: Column(mainAxisSize: MainAxisSize.min, children: [
+                    Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          for (var star = 1; star <= 5; star++)
+                            IconButton(
+                                onPressed: () =>
+                                    setDialogState(() => stars = star),
+                                icon: Icon(stars >= star
+                                    ? Icons.star
+                                    : Icons.star_border),
+                                color: GogdelyColors.blue),
+                        ]),
+                    TextField(
+                        controller: comment,
+                        maxLength: 500,
+                        decoration: const InputDecoration(
+                            labelText: 'Comentário (opcional)')),
+                    const Text(
+                        'Avaliação do laboratório local, visível na Gestão.',
+                        style: TextStyle(fontSize: 12)),
+                  ]),
+                  actions: [
+                    TextButton(
+                        onPressed: () => Navigator.pop(dialogContext, false),
+                        child: const Text('Voltar')),
+                    FilledButton(
+                        onPressed: stars == 0
+                            ? null
+                            : () => Navigator.pop(dialogContext, true),
+                        child: const Text('Enviar avaliação')),
+                  ],
+                )));
+    if (confirmed != true) {
+      comment.dispose();
+      return;
+    }
+    try {
+      final summary = await _localApi.rateOrder(
+          orderId: order.id, stars: stars, comment: comment.text.trim());
+      if (!mounted) return;
+      setState(() {
+        _storeRatings = summary;
+        _ratedOrderIds.add(order.id);
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Obrigado! Avaliação registrada.')));
+    } catch (error) {
+      if (mounted) setState(() => _localError = '$error');
+    } finally {
+      comment.dispose();
     }
   }
 
@@ -876,6 +967,10 @@ class _HomeScreenState extends State<HomeScreen> {
         const SizedBox(height: 3),
         Text('⭐ ${store.rating} · ${store.eta} · Aberto',
             style: Theme.of(context).textTheme.bodySmall),
+        if (localDemoEnabled && (_storeRatings?['count'] as int? ?? 0) > 0)
+          Text(
+              '⭐ ${_storeRatings!['average_stars']} · ${_storeRatings!['count']} avaliações locais',
+              style: Theme.of(context).textTheme.bodySmall),
         const SizedBox(height: 12),
         Wrap(spacing: 6, children: [
           for (final label in ['Cardápio', 'Avaliações', 'Sobre'])
@@ -1253,6 +1348,15 @@ class _HomeScreenState extends State<HomeScreen> {
           if (_savedOrder!.paymentSimulated)
             const Text(
                 'Pagamento simulado no laboratório local. Nenhuma cobrança real foi feita.',
+                style: TextStyle(fontSize: 12)),
+          if ({'delivered', 'served', 'picked_up'}.contains(_savedOrder!.status) &&
+              !_ratedOrderIds.contains(_savedOrder!.id))
+            OutlinedButton.icon(
+                onPressed: () => _rateOrder(_savedOrder!),
+                icon: const Icon(Icons.star_outline),
+                label: const Text('Avaliar pedido')),
+          if (_ratedOrderIds.contains(_savedOrder!.id))
+            const Text('Pedido avaliado. Obrigado!',
                 style: TextStyle(fontSize: 12)),
           if (_savedOrder!.orderChannel == 'delivery' &&
               _savedOrder!.status == 'ready')

@@ -70,6 +70,8 @@ class _GestaoHomeState extends State<GestaoHome> {
   List<String> _paymentMethodsDraft = const ['cash', 'pix', 'card'];
   String? _paymentSettingsError;
   bool _savingPaymentSettings = false;
+  Map<String, dynamic>? _ratingsSummary;
+  bool _refreshingRatings = false;
   ManagementPage page = ManagementPage.dashboard;
   final List<String> saleItems = [];
   final List<int> kitchenSteps = [0, 1, 2];
@@ -80,12 +82,14 @@ class _GestaoHomeState extends State<GestaoHome> {
     super.initState();
     if (localDemoEnabled) {
       _refreshLocalOrders();
+      _refreshRatings();
       _localRefreshTimer = Timer.periodic(localDemoRefreshInterval, (_) {
         if ({
           ManagementPage.dashboard,
           ManagementPage.orders,
           ManagementPage.kds
         }.contains(page)) _refreshLocalOrders();
+        if (page == ManagementPage.dashboard) _refreshRatings();
       });
     }
   }
@@ -95,8 +99,27 @@ class _GestaoHomeState extends State<GestaoHome> {
     if (localDemoEnabled &&
         {ManagementPage.orders, ManagementPage.kds}.contains(value))
       _refreshLocalOrders();
+    if (localDemoEnabled && value == ManagementPage.dashboard)
+      _refreshRatings();
     if (localDemoEnabled && value == ManagementPage.settings)
       _refreshPaymentMethods();
+  }
+
+  Future<void> _refreshRatings() async {
+    if (_refreshingRatings) return;
+    _refreshingRatings = true;
+    try {
+      final summary = await _localApi.storeRatings();
+      if (mounted &&
+          ((summary['count'] as int?) != (_ratingsSummary?['count'] as int?) ||
+              summary['average_stars'] != _ratingsSummary?['average_stars'])) {
+        setState(() => _ratingsSummary = summary);
+      }
+    } catch (_) {
+      // Avaliação é complemento; falha não bloqueia o painel local.
+    } finally {
+      _refreshingRatings = false;
+    }
   }
 
   Future<void> _refreshPaymentMethods() async {
@@ -782,6 +805,15 @@ class _GestaoHomeState extends State<GestaoHome> {
                       .fold(0, (sum, order) => sum + order.totalCents)),
                   Icons.receipt_long_outlined,
                   'Não recebido')),
+          SizedBox(
+              width: 170,
+              child: _metric(
+                  'Avaliação média',
+                  (_ratingsSummary?['count'] as int? ?? 0) > 0
+                      ? '⭐ ${_ratingsSummary!['average_stars']}'
+                      : 'Sem notas',
+                  Icons.star_outline,
+                  '${_ratingsSummary?['count'] ?? 0} locais')),
           _localOrdersPanel(maxItems: 10),
         ])
       : _scroll([

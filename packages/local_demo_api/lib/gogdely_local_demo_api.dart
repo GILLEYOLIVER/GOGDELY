@@ -636,6 +636,22 @@ class LocalDemoApi {
     ) as Map<String, dynamic>,
   );
 
+  /// Rates a finished order in the local pilot (GOG-022).
+  Future<Map<String, dynamic>> rateOrder({
+    required int orderId,
+    required int stars,
+    String comment = '',
+  }) async => await _request(
+    'POST',
+    '/orders/$orderId/rating',
+    body: {'stars': stars, 'comment': comment},
+  ) as Map<String, dynamic>;
+
+  /// Ratings summary for the pilot store (GOG-022).
+  Future<Map<String, dynamic>> storeRatings() async =>
+      await _request('GET', '/stores/burger-house/ratings')
+          as Map<String, dynamic>;
+
   Future<DemoOrder> cancelOrder(int id, String actor, String reason) async =>
       DemoOrder.fromJson(
         await _request(

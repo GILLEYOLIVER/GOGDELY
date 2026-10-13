@@ -125,6 +125,15 @@ def _connect() -> sqlite3.Connection:
         created_at TEXT NOT NULL
     )""")
     connection.execute("CREATE INDEX IF NOT EXISTS demo_order_payments_order_idx ON demo_order_payments(order_id, id)")
+    connection.execute("""CREATE TABLE IF NOT EXISTS demo_order_ratings (
+        order_id INTEGER PRIMARY KEY REFERENCES demo_orders(id),
+        store_id TEXT NOT NULL,
+        stars INTEGER NOT NULL CHECK(stars BETWEEN 1 AND 5),
+        comment TEXT NOT NULL DEFAULT '',
+        actor TEXT NOT NULL,
+        created_at TEXT NOT NULL
+    )""")
+    connection.execute("CREATE INDEX IF NOT EXISTS demo_order_ratings_store_idx ON demo_order_ratings(store_id, order_id)")
     for old_pickup in connection.execute(
             "SELECT id FROM demo_orders WHERE order_channel='pickup' AND pickup_code IS NULL AND status!='picked_up'"):
         connection.execute("UPDATE demo_orders SET pickup_code=? WHERE id=? AND pickup_code IS NULL",
@@ -388,6 +397,11 @@ class KitchenPriorityInput(BaseModel):
 class PaymentSimulationInput(BaseModel):
     request_key: UUID
     reason: str = Field(min_length=3, max_length=300)
+
+
+class RatingInput(BaseModel):
+    stars: int = Field(ge=1, le=5)
+    comment: str = Field(default="", max_length=500)
 
 
 class AddonInput(BaseModel):
@@ -1383,6 +1397,50 @@ def simulate_order_payment(order_id: int, payload: PaymentSimulationInput) -> di
              f"Pagamento simulado ({row['payment_method']}) · {_money(row['total_cents'])} · "
              f"sem cobrança real · motivo: {reason}", now))
         return _order(db.execute("SELECT * FROM demo_orders WHERE id=?", (order_id,)).fetchone())
+
+
+def _ratings_summary(db: sqlite3.Connection, store_id: str) -> dict:
+    row = db.execute("""SELECT COUNT(*) AS count,
+        COALESCE(AVG(stars), 0) AS average FROM demo_order_ratings WHERE store_id=?""",
+        (store_id,)).fetchone()
+    recent = [dict(entry) for entry in db.execute(
+        """SELECT order_id, stars, comment, created_at FROM demo_order_ratings
+           WHERE store_id=? ORDER BY order_id DESC LIMIT 20""", (store_id,))]
+    return {"count": row["count"], "average_stars": round(row["average"], 1), "recent": recent}
+
+
+@router.post("/orders/{order_id}/rating")
+def rate_order(order_id: int, payload: RatingInput) -> dict:
+    """Local pilot rating (GOG-022): one rating per finished order."""
+    _enabled()
+    with _db() as db:
+        row = db.execute("SELECT * FROM demo_orders WHERE id=? AND tenant_id='local-demo'",
+                         (order_id,)).fetchone()
+        if row is None:
+            raise HTTPException(status_code=404, detail="Demo order not found")
+        if row["status"] not in ("delivered", "served", "picked_up"):
+            raise HTTPException(status_code=409, detail="Only finished orders can be rated")
+        if db.execute("SELECT order_id FROM demo_order_ratings WHERE order_id=?",
+                      (order_id,)).fetchone() is not None:
+            raise HTTPException(status_code=409, detail="Order already rated")
+        now = datetime.now(timezone.utc).isoformat()
+        db.execute("INSERT INTO demo_order_ratings VALUES (?, ?, ?, ?, 'customer', ?)",
+                   (order_id, row["store_id"], payload.stars, payload.comment.strip(), now))
+        reason = f"Avaliação {payload.stars}★ registrada"
+        if payload.comment.strip():
+            reason += f" · {payload.comment.strip()[:80]}"
+        db.execute("""INSERT INTO demo_order_events
+            (order_id, from_status, to_status, actor, reason, created_at)
+            VALUES (?, ?, ?, 'customer', ?, ?)""",
+            (order_id, row["status"], row["status"], reason, now))
+        return _ratings_summary(db, row["store_id"])
+
+
+@router.get("/stores/burger-house/ratings")
+def burger_ratings() -> dict:
+    _enabled()
+    with _db() as db:
+        return _ratings_summary(db, "burger-house")
 
 
 @router.post("/orders/{order_id}/dispatch-internal")
