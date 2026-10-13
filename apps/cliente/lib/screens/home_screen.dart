@@ -28,6 +28,7 @@ enum _Page {
   splash,
   complete,
   settings,
+  help,
 }
 
 class _CartLine {
@@ -79,6 +80,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final List<_CartLine> cart = [];
   String category = 'Todos';
   String search = '';
+  String _storeSearch = '';
   String selectedSize = 'Tradicional';
   final Set<String> extras = {};
   int productQuantity = 1;
@@ -107,6 +109,13 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Iterable<DemoStore> get visibleStores =>
       localDemoEnabled ? [_pilotStore].whereType<DemoStore>() : demoStores;
+
+  List<DemoProduct> get _visibleStoreProducts => store.products
+      .where((product) =>
+          _storeSearch.isEmpty ||
+          product.name.toLowerCase().contains(_storeSearch) ||
+          product.category.toLowerCase().contains(_storeSearch))
+      .toList();
 
   @override
   void initState() {
@@ -556,6 +565,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void openStore(DemoStore value) => setState(() {
         store = value;
+        _storeSearch = '';
         page = _Page.store;
       });
 
@@ -783,6 +793,7 @@ class _HomeScreenState extends State<HomeScreen> {
         _Page.splash => _splashPage(),
         _Page.complete => _completePage(),
         _Page.settings => _settingsPage(),
+        _Page.help => _helpPage(),
       };
 
   Widget _list(List<Widget> children, {EdgeInsets? padding}) => ListView(
@@ -1039,32 +1050,39 @@ class _HomeScreenState extends State<HomeScreen> {
               '⭐ ${_storeRatings!['average_stars']} · ${_storeRatings!['count']} avaliações locais',
               style: Theme.of(context).textTheme.bodySmall),
         const SizedBox(height: 12),
+        TextField(
+            decoration: const InputDecoration(
+                prefixIcon: Icon(Icons.search),
+                hintText: 'Buscar no cardápio desta loja'),
+            onChanged: (value) =>
+                setState(() => _storeSearch = value.trim().toLowerCase())),
+        const SizedBox(height: 4),
         Wrap(spacing: 6, children: [
-          for (final label in ['Cardápio', 'Avaliações', 'Sobre'])
+          for (final label in ['Avaliações', 'Sobre'])
             ActionChip(
                 label: Text(label),
                 onPressed: () {
-                  if (label != 'Cardápio') {
-                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                        content: Text('$label: conteúdo fictício da prévia')));
-                  }
+                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+                      content: Text('$label: conteúdo fictício da prévia')));
                 }),
         ]),
         _sectionTitle('Cardápio'),
         if (localDemoEnabled && _menuError != null) Text(_menuError!),
         if (localDemoEnabled && store.products.isEmpty)
           const Text('Nenhum produto disponível no momento. Consulte a loja.'),
+        if (_storeSearch.isNotEmpty && _visibleStoreProducts.isEmpty)
+          Text('Nenhum produto encontrado para "$_storeSearch".'),
         if (!localDemoEnabled)
-          for (final value in store.products)
+          for (final value in _visibleStoreProducts)
             DemoProductTile(value, onTap: () => openProduct(value)),
         // GOG-016: as subcategorias da empresa guiam a navegação do cardápio.
         if (localDemoEnabled)
-          for (final category in store.products
+          for (final category in _visibleStoreProducts
               .map((product) => product.category)
               .toSet()
               .toList()) ...[
             _sectionTitle(category),
-            for (final value in store.products
+            for (final value in _visibleStoreProducts
                 .where((product) => product.category == category))
               DemoProductTile(value, onTap: () => openProduct(value)),
           ],
@@ -1784,6 +1802,8 @@ class _HomeScreenState extends State<HomeScreen> {
             'Ler QR de mesa',
             () => Navigator.push(context,
                 MaterialPageRoute<void>(builder: (_) => const QrDemoScreen()))),
+        _profileTile(
+            Icons.help_outline, 'Ajuda e como pedir', () => open(_Page.help)),
         _profileTile(Icons.login, 'Ver tela de login', () => open(_Page.login)),
         _profileTile(Icons.auto_awesome_outlined, 'Ver apresentação',
             () => open(_Page.splash)),
@@ -1989,6 +2009,65 @@ class _HomeScreenState extends State<HomeScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Endereço salvo para os próximos pedidos.')));
   }
+
+  /// GOG-136 local: onboarding e ajuda do laboratório.
+  Widget _helpPage() => _list([
+        const Text('Ajuda e como pedir',
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+        const SizedBox(height: 6),
+        const Text(
+            'Guia da prévia local. Nada aqui envolve cobrança, GPS ou conta real.',
+            style: TextStyle(fontSize: 12)),
+        const SizedBox(height: 12),
+        _sectionTitle('Como pedir na Burger House'),
+        for (final (index, step) in [
+          'Escolha os produtos pelo cardápio agrupado por categorias.',
+          'Adicione ao carrinho — um estabelecimento por pedido.',
+          'No checkout, escolha entrega ou retirada, pagamento pretendido e, se quiser, agende a data/hora.',
+          'Acompanhe o status e avalie ao concluir.',
+        ].indexed)
+          ListTile(
+              leading: CircleAvatar(
+                  backgroundColor: GogdelyColors.blue,
+                  child: Text('${index + 1}',
+                      style: const TextStyle(
+                          color: Colors.white, fontWeight: FontWeight.w700))),
+              title: Text(step)),
+        _sectionTitle('Pagamento'),
+        const Card(
+            child: Padding(
+                padding: EdgeInsets.all(14),
+                child: Text(
+                    'A forma escolhida (dinheiro, Pix ou cartão) é salva apenas '
+                    'como pretendida. Nenhuma cobrança é processada nesta prévia.',
+                    style: TextStyle(fontSize: 13)))),
+        _sectionTitle('Mesa com QR'),
+        const Card(
+            child: Padding(
+                padding: EdgeInsets.all(14),
+                child: Text(
+                    'Escaneie o QR da mesa para abrir o cardápio no navegador, '
+                    'sem instalar aplicativo. O pedido vai para a fila da cozinha '
+                    'com mesa, data e hora.',
+                    style: TextStyle(fontSize: 13)))),
+        _sectionTitle('Códigos de conferência'),
+        const Card(
+            child: Padding(
+                padding: EdgeInsets.all(14),
+                child: Text(
+                    'Retirada e entrega usam um código de 6 dígitos exibido no '
+                    'acompanhamento. Informe somente ao receber o pedido.',
+                    style: TextStyle(fontSize: 13)))),
+        _sectionTitle('Privacidade do laboratório'),
+        const Card(
+            child: Padding(
+                padding: EdgeInsets.all(14),
+                child: Text(
+                    'Todos os dados são fictícios e gravados apenas no SQLite '
+                    'deste computador. Sem contas, GPS, notificações push ou '
+                    'serviços externos.',
+                    style: TextStyle(fontSize: 13)))),
+      ]);
 
   Widget _settingsPage() => _list([
         const Text('Tema do aplicativo',
