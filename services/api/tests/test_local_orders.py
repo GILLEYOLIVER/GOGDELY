@@ -654,3 +654,49 @@ def test_local_order_comanda_is_printable_and_private(tmp_path, monkeypatch):
     assert "sem valor fiscal" in page
     assert 'name="robots" content="noindex, nofollow"' in page
     assert client.get(f"{base}/orders/999999/comanda").status_code == 404
+
+
+def test_local_delivery_records_optional_proof_note(tmp_path, monkeypatch):
+    monkeypatch.setenv("GOGDELY_ENV", "local")
+    monkeypatch.setenv("GOGDELY_LOCAL_DEMO", "1")
+    monkeypatch.setenv("GOGDELY_LOCAL_DB", str(tmp_path / "proof.sqlite3"))
+    client = TestClient(app)
+    base = "/api/v1/local"
+    order = client.post(f"{base}/orders", json={
+        "request_key": str(uuid4()), "store_id": "burger-house",
+        "address_label": "Rua do Comprovante, 9", "payment_method": "cash",
+        "items": [{"product_id": "x-tudo", "quantity": 1}],
+    }).json()
+    status_url = f"{base}/orders/{order['id']}/status"
+    for status in ("preparing", "ready"):
+        assert client.patch(status_url, json={"status": status, "actor": "management"}).status_code == 200
+    assert client.post(f"{base}/orders/{order['id']}/dispatch-internal").status_code == 200
+    assert client.patch(status_url, json={"status": "in_delivery", "actor": "courier"}).status_code == 200
+
+    delivered = client.patch(status_url, json={
+        "status": "delivered", "actor": "courier",
+        "delivery_code": order["delivery_code"],
+        "proof_note": "Entregue em mãos ao responsável do endereço",
+    })
+    assert delivered.status_code == 200
+    events = client.get(f"{base}/orders/{order['id']}/events").json()
+    proof = [event for event in events if "Comprovante da entrega" in event["reason"]]
+    assert len(proof) == 1
+    assert "Entregue em mãos" in proof[0]["reason"]
+    assert proof[0]["actor"] == "courier"
+
+    # Delivery without a note keeps the plain event, as before.
+    plain = client.post(f"{base}/orders", json={
+        "request_key": str(uuid4()), "store_id": "burger-house",
+        "address_label": "Rua Sem Nota, 3", "payment_method": "cash",
+        "items": [{"product_id": "batata", "quantity": 1}],
+    }).json()
+    plain_url = f"{base}/orders/{plain['id']}/status"
+    for status in ("preparing", "ready"):
+        client.patch(plain_url, json={"status": status, "actor": "management"})
+    client.post(f"{base}/orders/{plain['id']}/dispatch-internal")
+    client.patch(plain_url, json={"status": "in_delivery", "actor": "courier"})
+    client.patch(plain_url, json={"status": "delivered", "actor": "courier",
+                                  "delivery_code": plain["delivery_code"]})
+    plain_events = client.get(f"{base}/orders/{plain['id']}/events").json()
+    assert not [event for event in plain_events if "Comprovante" in event["reason"]]

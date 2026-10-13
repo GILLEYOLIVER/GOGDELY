@@ -607,6 +607,7 @@ class LocalDemoApi {
     String actor, {
     String? pickupCode,
     String? deliveryCode,
+    String? proofNote,
   }) async => DemoOrder.fromJson(
     await _request(
       'PATCH',
@@ -616,6 +617,8 @@ class LocalDemoApi {
         'actor': actor,
         if (pickupCode != null) 'pickup_code': pickupCode,
         if (deliveryCode != null) 'delivery_code': deliveryCode,
+        if (proofNote != null && proofNote.trim().isNotEmpty)
+          'proof_note': proofNote.trim(),
       },
     ) as Map<String, dynamic>,
   );

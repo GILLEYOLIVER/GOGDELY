@@ -418,6 +418,8 @@ class StatusInput(BaseModel):
     actor: str
     pickup_code: str | None = Field(default=None, pattern=r"^\d{6}$")
     delivery_code: str | None = Field(default=None, pattern=r"^\d{6}$")
+    # GOG-046: optional delivery proof note recorded with the courier event.
+    proof_note: str = Field(default="", max_length=300)
 
 
 class CancelInput(BaseModel):
@@ -1645,8 +1647,11 @@ def update_status(order_id: int, payload: StatusInput) -> dict:
         cursor = db.execute("UPDATE demo_orders SET status=?, updated_at=? WHERE id=? AND status=?", (payload.status, now, order_id, row["status"]))
         if cursor.rowcount != 1:
             raise HTTPException(status_code=409, detail="Order changed; refresh")
+        note = payload.proof_note.strip()
+        event_reason = (f"Comprovante da entrega: {note}"
+                        if payload.status == "delivered" and note else "")
         db.execute("""INSERT INTO demo_order_events
             (order_id, from_status, to_status, actor, reason, created_at)
-            VALUES (?, ?, ?, ?, '', ?)""",
-            (order_id, row["status"], payload.status, payload.actor, now))
+            VALUES (?, ?, ?, ?, ?, ?)""",
+            (order_id, row["status"], payload.status, payload.actor, event_reason, now))
         return _order(db.execute("SELECT * FROM demo_orders WHERE id=?", (order_id,)).fetchone())

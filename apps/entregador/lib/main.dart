@@ -134,43 +134,63 @@ class _EntregadorHomeState extends State<EntregadorHome> {
   Future<void> _advanceLocalOrder(DemoOrder order) async {
     final next = order.status == 'ready' ? 'in_delivery' : 'delivered';
     String? deliveryCode;
+    String? proofNote;
     if (next == 'delivered') {
-      final controller = TextEditingController();
-      deliveryCode = await showDialog<String>(
+      final code = TextEditingController();
+      final note = TextEditingController();
+      final confirmation = await showDialog<({String code, String note})>(
           context: context,
           builder: (context) => AlertDialog(
                 title: Text('Confirmar entrega #${order.id}'),
-                content: TextField(
-                  controller: controller,
-                  autofocus: true,
-                  keyboardType: TextInputType.number,
-                  maxLength: 6,
-                  decoration: const InputDecoration(
-                    labelText: 'Código de 6 dígitos mostrado ao cliente',
-                    helperText: 'Peça o código somente ao entregar o pedido.',
+                content: Column(mainAxisSize: MainAxisSize.min, children: [
+                  TextField(
+                    controller: code,
+                    autofocus: true,
+                    keyboardType: TextInputType.number,
+                    maxLength: 6,
+                    decoration: const InputDecoration(
+                      labelText: 'Código de 6 dígitos mostrado ao cliente',
+                      helperText: 'Peça o código somente ao entregar o pedido.',
+                    ),
                   ),
-                ),
+                  // GOG-046 local: comprovante textual opcional.
+                  TextField(
+                    controller: note,
+                    maxLength: 300,
+                    decoration: const InputDecoration(
+                        labelText: 'Comprovante (opcional)',
+                        helperText:
+                            'Ex.: entregue em mãos ao responsável. Simulação local, sem foto ou assinatura.'),
+                  ),
+                ]),
                 actions: [
                   TextButton(
                       onPressed: () => Navigator.pop(context),
                       child: const Text('Voltar')),
                   FilledButton(
                       onPressed: () {
-                        if (RegExp(r'^\d{6}$')
-                            .hasMatch(controller.text.trim())) {
-                          Navigator.pop(context, controller.text.trim());
+                        if (RegExp(r'^\d{6}$').hasMatch(code.text.trim())) {
+                          Navigator.pop(
+                              context,
+                              (
+                                code: code.text.trim(),
+                                note: note.text.trim(),
+                              ));
                         }
                       },
                       child: const Text('Confirmar entrega')),
                 ],
               ));
-      controller.dispose();
-      if (deliveryCode == null || !mounted) return;
+      code.dispose();
+      note.dispose();
+      if (confirmation == null || !mounted) return;
+      deliveryCode = confirmation.code;
+      proofNote = confirmation.note;
     }
     setState(() => _updatingId = order.id);
     try {
       await _localApi.updateStatus(order.id, next, 'courier',
-          deliveryCode: deliveryCode);
+          deliveryCode: deliveryCode, proofNote: proofNote);
       await _refreshLocalOrders();
     } catch (error) {
       if (mounted) setState(() => _localError = '$error');
