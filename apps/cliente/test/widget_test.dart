@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:gogdely_cliente/main.dart';
 import 'package:gogdely_cliente/screens/client_components.dart';
+import 'package:gogdely_local_demo_api/gogdely_local_demo_api.dart';
 
 void main() {
   testWidgets('home follows approved visual journey and filters categories',
@@ -9,6 +10,14 @@ void main() {
     await tester.pumpWidget(const GogdelyApp());
     expect(find.byType(BrandWordmark), findsOneWidget);
     expect(find.text('Sabor que\nse aproxima.'), findsOneWidget);
+    if (localDemoEnabled) {
+      // Local pilot home: Burger House section replaces the category grid.
+      expect(find.text('Empresa piloto'), findsOneWidget);
+      expect(
+          find.text('Carregando cardápio local da Burger House...'),
+          findsOneWidget);
+      return;
+    }
     await tester.scrollUntilVisible(find.text('Categorias'), 140,
         scrollable: find.byType(Scrollable).first);
     await tester.tap(find.text('Restaurantes'));
@@ -19,6 +28,14 @@ void main() {
 
   testWidgets('home lists demonstration stores', (tester) async {
     await tester.pumpWidget(const GogdelyApp());
+    if (localDemoEnabled) {
+      await tester.scrollUntilVisible(find.text('Empresa piloto'), 200,
+          scrollable: find.byType(Scrollable).first);
+      expect(find.text('Empresa piloto'), findsOneWidget);
+      // Without a reachable local API the pilot store is not listed yet.
+      expect(find.text('Burger House'), findsNothing);
+      return;
+    }
     await tester.scrollUntilVisible(find.text('Estabelecimentos próximos'), 200,
         scrollable: find.byType(Scrollable).first);
     expect(find.text('Estabelecimentos próximos'), findsOneWidget);
@@ -27,10 +44,19 @@ void main() {
     expect(find.text('Burger House'), findsOneWidget);
   });
 
-  testWidgets('search opens product and keeps cart to one store', (tester) async {
+  testWidgets('search opens product and keeps cart to one store',
+      (tester) async {
     await tester.pumpWidget(const GogdelyApp());
     await tester.tap(find.text('Busca'));
     await tester.pump();
+    if (localDemoEnabled) {
+      // Local pilot search only covers the Burger House menu.
+      expect(find.text('Busque no cardápio da Burger House'), findsOneWidget);
+      await tester.enterText(find.byType(TextField), 'pizza');
+      await tester.pump();
+      expect(find.textContaining('Nenhuma loja encontrada'), findsOneWidget);
+      return;
+    }
     await tester.enterText(find.byType(TextField), 'pizza');
     await tester.pump();
     expect(find.text('Pizzaria Napoli'), findsOneWidget);
@@ -54,9 +80,11 @@ void main() {
         scrollable: find.byType(Scrollable).first);
     await tester.tap(find.text('Continuar para checkout'));
     await tester.pump();
-    await tester.scrollUntilVisible(find.textContaining('A forma escolhida será salva'), 180,
+    await tester.scrollUntilVisible(
+        find.textContaining('A forma escolhida será salva'), 180,
         scrollable: find.byType(Scrollable).first);
-    expect(find.textContaining('Nenhum pagamento será processado'), findsOneWidget);
+    expect(
+        find.textContaining('Nenhum pagamento será processado'), findsOneWidget);
   });
 
   testWidgets('theme settings expose light dark and automatic modes',
