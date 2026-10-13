@@ -5,6 +5,10 @@ No **KDS**, o menu de ações de um pedido novo ou em preparo permite **Marcar p
 
 Em **Pedidos**, o menu de ações permite **Registrar pagamento simulado** para pedidos não cancelados com forma de pagamento escolhida, sempre com motivo. O cartão passa a mostrar `pagamento simulado no laboratório (sem cobrança real)` e a declaração fica no histórico do pedido. É apenas registro de teste: nada é cobrado, transferido ou confirmado financeiramente, e nenhum provedor é acionado.
 
+O mesmo menu oferece **Imprimir comanda**, que abre no navegador uma comanda 80mm do pedido (itens, mesa/canal, prioridade e total) pronta para impressão local — sem valor fiscal e sem integração com impressora térmica real (GOG-031 em simulação).
+
+Em **Configurações**, o seletor **Papel local** (Gerente, Caixa, Cozinha) simula permissões (GOG-037): só o Gerente cancela pedidos, Caixa e Gerente registram pagamentos simulados, Cozinha e Gerente mudam prioridade. A troca é livre e não representa autenticação ou controle de acesso real.
+
 No VS Code, abra a raiz `C:\Projetos\GOGDELY`, selecione `GOGDELY Loja / Restaurante • Gestão (Windows)` em Executar e Depurar e pressione F5. Também é possível abrir somente `apps/gestao`; o arquivo `.vscode/launch.json` dessa pasta oferece o mesmo F5. Para abrir os três apps rapidamente com a API local, use `GOGDELY • Cliente + Gestão + Entregador (F5)` na raiz.
 
 # Cardápio local da Burger House

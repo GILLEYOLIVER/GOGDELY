@@ -71,6 +71,19 @@ class _GestaoHomeState extends State<GestaoHome> {
   List<String> _paymentMethodsDraft = const ['cash', 'pix', 'card'];
   String? _paymentSettingsError;
   bool _savingPaymentSettings = false;
+
+  /// GOG-037 local: simulated role gating without real authentication.
+  String _localRole = 'manager';
+  bool get _roleIsManager => _localRole == 'manager';
+  bool get _roleCanSimulatePayment =>
+      const {'manager', 'cashier'}.contains(_localRole);
+  bool get _roleCanSetPriority =>
+      const {'manager', 'kitchen'}.contains(_localRole);
+  String get _roleLabel => switch (_localRole) {
+        'cashier' => 'Caixa',
+        'kitchen' => 'Cozinha',
+        _ => 'Gerente',
+      };
   Map<String, dynamic>? _ratingsSummary;
   bool _refreshingRatings = false;
   ManagementPage page = ManagementPage.dashboard;
@@ -504,6 +517,12 @@ class _GestaoHomeState extends State<GestaoHome> {
                     : 'Pedidos salvos no banco local',
                 style: const TextStyle(
                     fontSize: 17, fontWeight: FontWeight.w800))),
+        Padding(
+            padding: const EdgeInsets.only(right: 4),
+            child: Chip(
+                label: Text('Papel: $_roleLabel',
+                    style: const TextStyle(fontSize: 11)),
+                visualDensity: VisualDensity.compact)),
         IconButton(
             tooltip: 'Atualizar pedidos locais',
             onPressed: _refreshLocalOrders,
@@ -573,7 +592,8 @@ class _GestaoHomeState extends State<GestaoHome> {
                 const PopupMenuItem(
                     value: 'comanda', child: Text('Imprimir comanda')),
                 if (kitchenOnly &&
-                    {'created', 'preparing'}.contains(order.status))
+                    {'created', 'preparing'}.contains(order.status) &&
+                    _roleCanSetPriority)
                   PopupMenuItem(
                       value: 'priority',
                       child: Text(order.kitchenPriority == 'urgent'
@@ -581,11 +601,13 @@ class _GestaoHomeState extends State<GestaoHome> {
                           : 'Marcar prioritário')),
                 if (order.status != 'cancelled' &&
                     order.paymentMethod != 'unselected' &&
-                    !order.paymentSimulated)
+                    !order.paymentSimulated &&
+                    _roleCanSimulatePayment)
                   const PopupMenuItem(
                       value: 'simulate',
                       child: Text('Registrar pagamento simulado')),
-                if ({'created', 'preparing'}.contains(order.status))
+                if ({'created', 'preparing'}.contains(order.status) &&
+                    _roleIsManager)
                   const PopupMenuItem(
                       value: 'cancel', child: Text('Cancelar pedido')),
               ],
@@ -1220,6 +1242,28 @@ class _GestaoHomeState extends State<GestaoHome> {
 
   Widget _settings() => _scroll([
         if (localDemoEnabled) ...[
+          _label('Papel local · simulação de permissões'),
+          const Text(
+              'GOG-037 no laboratório: ações críticas mudam conforme o papel. '
+              'Sem autenticação real — qualquer pessoa pode trocar de papel aqui.',
+              style: TextStyle(fontSize: 12)),
+          const SizedBox(height: 8),
+          Card(
+              child: Column(children: [
+            for (final (value, label) in [
+              ('manager', 'Gerente (tudo)'),
+              ('cashier', 'Caixa (pagamentos e balcão)'),
+              ('kitchen', 'Cozinha (fila e prioridade)'),
+            ])
+              ListTile(
+                  title: Text(label),
+                  trailing: _localRole == value
+                      ? const Icon(Icons.check_circle,
+                          color: GogdelyColors.blue)
+                      : null,
+                  onTap: () => setState(() => _localRole = value)),
+          ])),
+          const SizedBox(height: 16),
           _label('Pagamentos da Burger House · teste local'),
           const Text(
               'Escolha quais opções aparecem ao Cliente. Nenhum pagamento é processado.'),
