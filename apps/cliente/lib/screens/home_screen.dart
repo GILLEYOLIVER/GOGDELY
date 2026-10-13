@@ -99,6 +99,11 @@ class _HomeScreenState extends State<HomeScreen> {
   String addressLabel = 'Rua das Flores, 123';
   bool demoOrderCreated = false;
   int lastOrderTotal = 0;
+  bool _notifyOrderStatus = true;
+  bool _notifyPromotions = false;
+  bool _refreshingNotifications = false;
+  List<({int orderId, String? fromStatus, String toStatus, String actor, String reason, String createdAt})>
+      _notificationEvents = const [];
 
   Iterable<DemoStore> get visibleStores =>
       localDemoEnabled ? [_pilotStore].whereType<DemoStore>() : demoStores;
@@ -127,6 +132,11 @@ class _HomeScreenState extends State<HomeScreen> {
       _refreshMenu();
     }
     if (localDemoEnabled && target == _Page.orders) _refreshOrders();
+    if (localDemoEnabled && target == _Page.notifications) {
+      _refreshOrders().then((_) {
+        if (mounted) _refreshNotifications();
+      });
+    }
     if (localDemoEnabled && target == _Page.tracking) {
       _refreshOrder();
       _refreshRatings();
@@ -1735,30 +1745,128 @@ class _HomeScreenState extends State<HomeScreen> {
       ));
 
   Widget _notificationsPage() => _list([
-        for (final (icon, title, subtitle) in [
-          (
-            Icons.receipt_long,
-            'Seu pedido de teste está a caminho',
-            'Agora · cenário fictício'
-          ),
-          (
-            Icons.local_offer_outlined,
-            'Oferta especial',
-            'Exemplo · sem cupom ativo'
-          ),
-          (
-            Icons.notifications_active_outlined,
-            'Bem-vindo ao GOGDELY',
-            'Prévia local'
-          ),
-        ])
-          Card(
-              child: ListTile(
-            leading: CircleAvatar(child: Icon(icon, color: GogdelyColors.blue)),
-            title: Text(title),
-            subtitle: Text(subtitle),
-          )),
+        const Text('Notificações',
+            style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800)),
+        const SizedBox(height: 4),
+        const Text(
+            'Canais do laboratório local: eventos dos seus pedidos no SQLite. '
+            'Não há push, e-mail ou SMS; as preferências valem só nesta prévia.',
+            style: TextStyle(fontSize: 12)),
+        const SizedBox(height: 12),
+        _sectionTitle('Preferências (GOG-102 local)'),
+        SwitchListTile(
+            secondary: const Icon(Icons.receipt_long, color: GogdelyColors.blue),
+            title: const Text('Mudanças de status dos meus pedidos'),
+            value: _notifyOrderStatus,
+            onChanged: (value) => setState(() => _notifyOrderStatus = value)),
+        SwitchListTile(
+            secondary:
+                const Icon(Icons.local_offer_outlined, color: GogdelyColors.blue),
+            title: const Text('Promoções da plataforma e das lojas'),
+            subtitle: const Text('Ilustrativo: nenhuma promoção real existe.'),
+            value: _notifyPromotions,
+            onChanged: (value) => setState(() => _notifyPromotions = value)),
+        const Divider(),
+        if (!localDemoEnabled) ...[
+          for (final (icon, title, subtitle) in [
+            (
+              Icons.receipt_long,
+              'Seu pedido de teste está a caminho',
+              'Agora · cenário fictício'
+            ),
+            (
+              Icons.local_offer_outlined,
+              'Oferta especial',
+              'Exemplo · sem cupom ativo'
+            ),
+            (
+              Icons.notifications_active_outlined,
+              'Bem-vindo ao GOGDELY',
+              'Prévia local'
+            ),
+          ])
+            Card(
+                child: ListTile(
+              leading: CircleAvatar(child: Icon(icon, color: GogdelyColors.blue)),
+              title: Text(title),
+              subtitle: Text(subtitle),
+            )),
+        ] else ...[
+          _sectionTitle('Eventos dos meus pedidos'),
+          if (_refreshingNotifications)
+            const Text('Carregando eventos do banco local...'),
+          if (_localError != null)
+            Text(_localError!, style: const TextStyle(color: Colors.red)),
+          if (!_refreshingNotifications && _notificationEvents.isEmpty)
+            const Text('Nenhum evento nos seus pedidos locais ainda.'),
+          for (final entry in _notificationEvents)
+            Card(
+                child: ListTile(
+              leading: CircleAvatar(
+                  child: Icon(_notificationIcon(entry.toStatus),
+                      color: GogdelyColors.blue)),
+              title: Text(entry.fromStatus == entry.toStatus
+                  ? entry.reason
+                  : 'Pedido #${entry.orderId}: ${demoStatusLabel(entry.toStatus)}'),
+              subtitle: Text(
+                  '${demoActorLabel(entry.actor)} · ${_whenLabel(entry.createdAt)}'),
+            )),
+        ],
       ]);
+
+  IconData _notificationIcon(String status) => switch (status) {
+        'created' => Icons.receipt_long,
+        'preparing' => Icons.kitchen_outlined,
+        'ready' => Icons.task_alt,
+        'in_delivery' => Icons.delivery_dining,
+        'delivered' => Icons.home_outlined,
+        'served' => Icons.table_restaurant,
+        'picked_up' => Icons.storefront,
+        'cancelled' => Icons.cancel_outlined,
+        _ => Icons.event_note,
+      };
+
+  String _whenLabel(String iso) {
+    final date = DateTime.tryParse(iso)?.toLocal();
+    if (date == null) return '';
+    String two(int value) => value.toString().padLeft(2, '0');
+    return '${two(date.day)}/${two(date.month)} ${two(date.hour)}:${two(date.minute)}';
+  }
+
+  /// GOG-101 no laboratório: notificações derivadas dos eventos dos pedidos.
+  Future<void> _refreshNotifications() async {
+    if (_refreshingNotifications || _savedOrders.isEmpty) return;
+    _refreshingNotifications = true;
+    try {
+      final recent = _savedOrders.take(5).toList();
+      final batches = await Future.wait(
+          [for (final order in recent) _localApi.orderEvents(order.id)]);
+      if (!mounted) return;
+      final entries =
+          <({int orderId, String? fromStatus, String toStatus, String actor, String reason, String createdAt})>[];
+      for (var i = 0; i < recent.length; i++) {
+        for (final event in batches[i]) {
+          if (event.fromStatus == event.toStatus && event.reason.isEmpty) {
+            continue;
+          }
+          entries.add((
+            orderId: recent[i].id,
+            fromStatus: event.fromStatus,
+            toStatus: event.toStatus,
+            actor: event.actor,
+            reason: event.reason,
+            createdAt: event.createdAt,
+          ));
+        }
+      }
+      entries.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      setState(() => _notificationEvents = entries.take(30).toList());
+    } catch (error) {
+      if (mounted) setState(() => _localError = '$error');
+    } finally {
+      if (mounted) setState(() => _refreshingNotifications = false);
+    }
+  }
 
   Widget _addressPage() => _list([
         const Text('Onde você quer receber?',
