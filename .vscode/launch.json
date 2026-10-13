@@ -40,6 +40,15 @@
       "toolArgs": ["--dart-define=GOGDELY_LOCAL_API=true"]
     },
     {
+      "name": "GOGDELY Master • Plataforma (Windows)",
+      "type": "dart",
+      "request": "launch",
+      "cwd": "${workspaceFolder}/apps/master",
+      "program": "lib/main.dart",
+      "deviceId": "windows",
+      "toolArgs": ["--dart-define=GOGDELY_LOCAL_API=true"]
+    },
+    {
       "name": "GOGDELY API • Banco local",
       "type": "debugpy",
       "request": "launch",
@@ -53,6 +62,17 @@
     }
   ],
   "compounds": [
+    {
+      "name": "GOGDELY • Abrir os 4 aplicativos + API",
+      "configurations": [
+        "GOGDELY Cliente • somente esta janela",
+        "GOGDELY Entregador • Windows",
+        "GOGDELY Loja / Restaurante • Gestão (Windows)",
+        "GOGDELY Master • Plataforma (Windows)",
+        "GOGDELY API • Banco local"
+      ],
+      "stopAll": true
+    },
     {
       "name": "GOGDELY • Abrir os 3 aplicativos",
       "configurations": [

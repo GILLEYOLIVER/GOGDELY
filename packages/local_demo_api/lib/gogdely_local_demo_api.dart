@@ -267,6 +267,83 @@ class DemoAddon {
   Map<String, dynamic> toJson() => {'name': name, 'price_cents': priceCents};
 }
 
+class DemoPlan {
+  const DemoPlan(
+    this.planId,
+    this.name,
+    this.monthlyFeeCents,
+    this.commissionPercent,
+    this.trialDays,
+    this.notes,
+  );
+  final String planId;
+  final String name;
+  final int monthlyFeeCents;
+  final int commissionPercent;
+  final int trialDays;
+  final String notes;
+
+  factory DemoPlan.fromJson(Map<String, dynamic> json) => DemoPlan(
+    json['plan_id'] as String,
+    json['name'] as String,
+    json['monthly_fee_cents'] as int,
+    json['commission_percent'] as int,
+    json['trial_days'] as int,
+    json['notes'] as String,
+  );
+}
+
+class DemoCompany {
+  const DemoCompany(
+    this.storeId,
+    this.name,
+    this.category,
+    this.status,
+    this.plan,
+  );
+  final String storeId;
+  final String name;
+  final String category;
+  final String status;
+  final DemoPlan? plan;
+
+  factory DemoCompany.fromJson(Map<String, dynamic> json) => DemoCompany(
+    json['store_id'] as String,
+    json['name'] as String,
+    json['category'] as String,
+    json['status'] as String,
+    json['plan'] == null
+        ? null
+        : DemoPlan.fromJson(json['plan'] as Map<String, dynamic>),
+  );
+
+  bool get pending => status == 'pending';
+  bool get approved => status == 'approved';
+}
+
+class DemoAuditEntry {
+  const DemoAuditEntry(
+    this.source,
+    this.ref,
+    this.actor,
+    this.detail,
+    this.createdAt,
+  );
+  final String source;
+  final String ref;
+  final String actor;
+  final String detail;
+  final String createdAt;
+
+  factory DemoAuditEntry.fromJson(Map<String, dynamic> json) => DemoAuditEntry(
+    json['source'] as String,
+    json['ref'] as String,
+    json['actor'] as String,
+    json['detail'] as String,
+    json['created_at'] as String,
+  );
+}
+
 class LocalDemoApi {
   LocalDemoApi({http.Client? client, String? baseUrl})
     : _client = client ?? http.Client(),
@@ -581,6 +658,53 @@ class LocalDemoApi {
     await _request('POST', '/orders/$id/dispatch-internal')
         as Map<String, dynamic>,
   );
+
+  // ==== Master (laboratório local; ações críticas são simulações) ====
+
+  Future<Map<String, dynamic>> masterOverview() async =>
+      await _request('GET', '/master/overview') as Map<String, dynamic>;
+
+  Future<List<DemoCompany>> masterCompanies() async {
+    final result = await _request('GET', '/master/companies') as List;
+    return result
+        .map((entry) => DemoCompany.fromJson(entry as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<List<DemoPlan>> masterPlans() async {
+    final result = await _request('GET', '/master/plans') as List;
+    return result
+        .map((entry) => DemoPlan.fromJson(entry as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<DemoCompany> masterCompanyApproval({
+    required String storeId,
+    required String actor,
+    required bool approve,
+    required String reason,
+  }) async => DemoCompany.fromJson(
+    await _request(
+      'POST',
+      '/master/companies/$storeId/approval',
+      body: {
+        'actor': actor,
+        'decision': approve ? 'approve' : 'reject',
+        'reason': reason,
+      },
+    ) as Map<String, dynamic>,
+  );
+
+  Future<List<DemoAuditEntry>> masterAudit() async {
+    final result = await _request('GET', '/master/audit') as List;
+    return result
+        .map((entry) => DemoAuditEntry.fromJson(entry as Map<String, dynamic>))
+        .toList();
+  }
+
+  Future<Map<String, dynamic>> masterPaymentMethods() async =>
+      await _request('GET', '/master/payment-methods')
+          as Map<String, dynamic>;
 
   void close() => _client.close();
 }
