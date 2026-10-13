@@ -43,6 +43,7 @@ class DemoOrder {
     this.subtotalCents = 0,
     this.deliveryFeeCents = 0,
     this.createdAt = '',
+    this.scheduledFor,
   });
   final int id;
   final String storeId;
@@ -63,6 +64,7 @@ class DemoOrder {
   final int subtotalCents;
   final int deliveryFeeCents;
   final String createdAt;
+  final String? scheduledFor;
 
   factory DemoOrder.fromJson(Map<String, dynamic> json) => DemoOrder(
     json['id'] as int,
@@ -86,6 +88,7 @@ class DemoOrder {
     subtotalCents: json['subtotal_cents'] as int? ?? 0,
     deliveryFeeCents: json['delivery_fee_cents'] as int? ?? 0,
     createdAt: json['created_at'] as String? ?? '',
+    scheduledFor: json['scheduled_for'] as String?,
   );
 
   /// True only for laboratory declarations; never a real financial settlement.
@@ -517,6 +520,7 @@ class LocalDemoApi {
     required List<Map<String, dynamic>> items,
     String orderChannel = 'delivery',
     String paymentMethod = 'unselected',
+    String? scheduledFor,
   }) async => DemoOrder.fromJson(
     await _request(
       'POST',
@@ -528,6 +532,7 @@ class LocalDemoApi {
         'items': items,
         'order_channel': orderChannel,
         'payment_method': paymentMethod,
+        'scheduled_for': scheduledFor,
       },
     ) as Map<String, dynamic>,
   );

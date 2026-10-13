@@ -438,6 +438,13 @@ class _GestaoHomeState extends State<GestaoHome> {
     return '${two(date.day)}/${two(date.month)} ${two(date.hour)}:${two(date.minute)} · ';
   }
 
+  String _scheduleLabel(DemoOrder order) {
+    final slot = DateTime.tryParse(order.scheduledFor ?? '')?.toLocal();
+    if (slot == null) return '';
+    String two(int value) => value.toString().padLeft(2, '0');
+    return ' · agendado ${two(slot.day)}/${two(slot.month)} ${two(slot.hour)}:${two(slot.minute)}';
+  }
+
   int _countLocalStatuses(Set<String> statuses) =>
       _localOrders.where((order) => statuses.contains(order.status)).length;
 
@@ -490,7 +497,7 @@ class _GestaoHomeState extends State<GestaoHome> {
               '${order.tableCode != null ? ' · Mesa ${order.tableCode}' : order.orderChannel == 'pickup' ? ' · Retirada' : order.orderChannel == 'counter' ? ' · Balcão' : ' · Entrega'}'),
           subtitle: Text(
               '${order.items.map((item) => '${item.quantity} × ${item.name}').join(', ')}\n'
-              '${_localOrderTime(order)}${demoStatusLabel(order.status)} · ${money(order.totalCents)}\n'
+              '${_localOrderTime(order)}${demoStatusLabel(order.status)}${_scheduleLabel(order)} · ${money(order.totalCents)}\n'
               '${demoPaymentLabel(order.paymentMethod)} · pagamento ${demoPaymentStatusLabel(order.paymentStatus)}'),
           isThreeLine: true,
           trailing: Row(mainAxisSize: MainAxisSize.min, children: [

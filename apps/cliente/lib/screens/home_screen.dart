@@ -94,6 +94,8 @@ class _HomeScreenState extends State<HomeScreen> {
   final Set<int> _ratedOrderIds = {};
   String deliveryLabel = 'Padrão (25–35 min)';
   String _orderChannel = 'delivery';
+  bool _scheduleEnabled = false;
+  DateTime? _scheduledAt;
   String addressLabel = 'Rua das Flores, 123';
   bool demoOrderCreated = false;
   int lastOrderTotal = 0;
@@ -483,6 +485,9 @@ class _HomeScreenState extends State<HomeScreen> {
         addressLabel: addressLabel,
         orderChannel: _orderChannel,
         paymentMethod: paymentMethod,
+        scheduledFor: _scheduleEnabled && _scheduledAt != null
+            ? _scheduledAt!.toUtc().toIso8601String()
+            : null,
         items: cart.map((line) {
           final options = line.details.split(' · ');
           return {
@@ -509,6 +514,32 @@ class _HomeScreenState extends State<HomeScreen> {
     } finally {
       if (mounted) setState(() => _savingOrder = false);
     }
+  }
+
+  /// GOG-024 no laboratório local: escolhe o horário agendado do pedido.
+  Future<void> _pickScheduleDate() async {
+    final now = DateTime.now();
+    final date = await showDatePicker(
+        context: context,
+        initialDate: now.add(const Duration(minutes: 45)),
+        firstDate: now.add(const Duration(minutes: 30)),
+        lastDate: now.add(const Duration(days: 14)));
+    if (date == null || !mounted) return;
+    final time = await showTimePicker(
+        context: context,
+        initialTime:
+            TimeOfDay.fromDateTime(now.add(const Duration(minutes: 45))));
+    if (time == null || !mounted) return;
+    setState(() {
+      _scheduledAt =
+          DateTime(date.year, date.month, date.day, time.hour, time.minute);
+    });
+  }
+
+  String _formatSchedule(DateTime value) {
+    String two(int input) => input.toString().padLeft(2, '0');
+    return 'Agendado: ${two(value.day)}/${two(value.month)} '
+        '${two(value.hour)}:${two(value.minute)}';
   }
 
   void openStore(DemoStore value) => setState(() {
@@ -1184,6 +1215,45 @@ class _HomeScreenState extends State<HomeScreen> {
               onTap: () => setState(() => _orderChannel = channel),
             ),
         ],
+        if (localDemoEnabled) ...[
+          _sectionTitle('Quando receber?'),
+          for (final immediate in [true, false])
+            ListTile(
+              title: Text(
+                  immediate ? 'Assim que possível' : 'Agendar horário'),
+              subtitle: Text(immediate
+                  ? 'O pedido entra na fila imediatamente'
+                  : 'Data e hora futuras; mínimo 30 minutos, máximo 14 dias'),
+              leading: Icon(
+                  (_scheduleEnabled != immediate)
+                      ? Icons.radio_button_unchecked
+                      : Icons.radio_button_checked,
+                  color: GogdelyColors.blue),
+              onTap: () => setState(() {
+                _scheduleEnabled = !immediate;
+                if (immediate) _scheduledAt = null;
+              }),
+            ),
+          if (_scheduleEnabled)
+            Card(
+                child: Padding(
+                    padding: const EdgeInsets.all(12),
+                    child: Column(children: [
+                      Row(children: [
+                        Expanded(
+                            child: OutlinedButton.icon(
+                                onPressed: _pickScheduleDate,
+                                icon: const Icon(Icons.calendar_today),
+                                label: Text(_scheduledAt == null
+                                    ? 'Escolher data e hora'
+                                    : _formatSchedule(_scheduledAt!)))),
+                      ]),
+                      const SizedBox(height: 4),
+                      const Text(
+                          'Agendamento do laboratório local; a loja vê o horário no pedido.',
+                          style: TextStyle(fontSize: 11)),
+                    ]))),
+        ],
         if (!localDemoEnabled || _orderChannel == 'delivery') ...[
           _sectionTitle('Endereço de entrega'),
           Card(
@@ -1327,6 +1397,11 @@ class _HomeScreenState extends State<HomeScreen> {
           Text(_savedOrder!.orderChannel == 'pickup'
               ? 'Retirada na Burger House · sem frete'
               : 'Entrega no endereço: ${_savedOrder!.addressLabel}'),
+          if (_savedOrder!.scheduledFor != null)
+            Text(
+                _formatSchedule(
+                    DateTime.parse(_savedOrder!.scheduledFor!).toLocal()),
+                style: const TextStyle(fontWeight: FontWeight.w700)),
           if (_savedOrder!.orderChannel == 'pickup' &&
               _savedOrder!.status != 'cancelled' &&
               _savedOrder!.pickupCode != null)

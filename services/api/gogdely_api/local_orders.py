@@ -16,7 +16,7 @@ import binascii
 from html import escape
 from io import BytesIO
 from contextlib import contextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import parse_qs
 from uuid import UUID
@@ -113,6 +113,8 @@ def _connect() -> sqlite3.Connection:
     if "payment_state" not in columns:
         connection.execute(
             "ALTER TABLE demo_orders ADD COLUMN payment_state TEXT NOT NULL DEFAULT 'not_processed'")
+    if "scheduled_for" not in columns:
+        connection.execute("ALTER TABLE demo_orders ADD COLUMN scheduled_for TEXT")
     connection.execute("""CREATE TABLE IF NOT EXISTS demo_order_payments (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         order_id INTEGER NOT NULL REFERENCES demo_orders(id),
@@ -288,7 +290,7 @@ def _same_order_request(row: sqlite3.Row, payload: "OrderInput", table_code: str
                         order_channel: str, payment_method: str, address_label: str) -> bool:
     if (row["store_id"] != payload.store_id or row["address_label"] != address_label or
             row["table_code"] != table_code or row["order_channel"] != order_channel or
-            row["payment_method"] != payment_method):
+            row["payment_method"] != payment_method or row["scheduled_for"] != payload.scheduled_for):
         return False
     saved_items = json.loads(row["items_json"])
     return len(saved_items) == len(payload.items) and all(
@@ -342,6 +344,8 @@ class OrderInput(BaseModel):
     items: list[ItemInput] = Field(min_length=1, max_length=30)
     order_channel: Literal["delivery", "pickup", "counter"] = "delivery"
     payment_method: Literal["unselected", "cash", "pix", "card"] = "cash"
+    # GOG-024: ISO 8601 future slot for scheduled orders.
+    scheduled_for: str | None = None
 
 
 class PosSaleInput(BaseModel):
@@ -1115,6 +1119,24 @@ def _create_order(payload: OrderInput, table_code: str | None = None) -> dict:
     address_label = (f"Retirada na {store_name}" if order_channel == "pickup" else
                      f"Balcão {store_name}" if order_channel == "counter" else payload.address_label)
     request_key = str(payload.request_key)
+    scheduled_for: str | None = None
+    if payload.scheduled_for is not None:
+        if order_channel in {"table", "counter"}:
+            raise HTTPException(status_code=422,
+                                detail="Only delivery and pickup orders can be scheduled")
+        try:
+            slot = datetime.fromisoformat(payload.scheduled_for)
+        except ValueError:
+            raise HTTPException(status_code=422, detail="Scheduled slot must be ISO 8601") from None
+        now_check = datetime.now(timezone.utc)
+        if slot.tzinfo is None:
+            slot = slot.replace(tzinfo=timezone.utc)
+        if slot < now_check + timedelta(minutes=30):
+            raise HTTPException(status_code=422,
+                                detail="Scheduled slot must be at least 30 minutes ahead")
+        if slot > now_check + timedelta(days=14):
+            raise HTTPException(status_code=422, detail="Scheduled slot must be within 14 days")
+        scheduled_for = slot.isoformat()
     with _db() as db:
         existing = db.execute("SELECT * FROM demo_orders WHERE request_key=?", (request_key,)).fetchone()
         if existing:
@@ -1214,22 +1236,23 @@ def _create_order(payload: OrderInput, table_code: str | None = None) -> dict:
                                           ingredient["unit"], ingredient["stock_quantity"],
                                           ingredient["stock_quantity"] - quantity))
         cursor = db.execute("""INSERT INTO demo_orders
-            (request_key, store_id, store_name, address_label, items_json, subtotal_cents, delivery_fee_cents, total_cents, status, created_at, updated_at, table_code, order_channel, payment_method, pickup_code, delivery_code, dispatch_mode, stock_reserved_json, ingredient_reserved_json)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'created', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+            (request_key, store_id, store_name, address_label, items_json, subtotal_cents, delivery_fee_cents, total_cents, status, created_at, updated_at, table_code, order_channel, payment_method, pickup_code, delivery_code, dispatch_mode, stock_reserved_json, ingredient_reserved_json, scheduled_for)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'created', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
             (request_key, payload.store_id, store_name, address_label, json.dumps(resolved, ensure_ascii=False), subtotal, delivery_fee, subtotal + delivery_fee, now, now, table_code, order_channel, payment_method,
              f"{secrets.randbelow(1_000_000):06d}" if order_channel == "pickup" else None,
              f"{secrets.randbelow(1_000_000):06d}" if order_channel == "delivery" else None,
              "pending" if order_channel == "delivery" else "none", json.dumps(reserved),
-             json.dumps(ingredient_reserved)))
+             json.dumps(ingredient_reserved), scheduled_for))
         for kind, item_id, name, unit, before, after in pending_movements:
             _log_stock_movement(db, kind, item_id, name, unit, "order_deduction",
                                 before, after, f"Pedido #{cursor.lastrowid}",
                                 "order_local", now, cursor.lastrowid)
         db.execute("""INSERT INTO demo_order_events
             (order_id, from_status, to_status, actor, reason, created_at)
-            VALUES (?, NULL, 'created', ?, '', ?)""",
+            VALUES (?, NULL, 'created', ?, ?, ?)""",
             (cursor.lastrowid, "table_guest" if table_code else
-             "management_pos" if order_channel == "counter" else "customer", now))
+             "management_pos" if order_channel == "counter" else "customer",
+             f"Pedido agendado para {scheduled_for}" if scheduled_for else "", now))
         return _order(db.execute("SELECT * FROM demo_orders WHERE id=?", (cursor.lastrowid,)).fetchone())
 
 
