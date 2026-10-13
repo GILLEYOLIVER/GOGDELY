@@ -87,9 +87,11 @@ class _GestaoHomeState extends State<GestaoHome> {
         if ({
           ManagementPage.dashboard,
           ManagementPage.orders,
-          ManagementPage.kds
+          ManagementPage.kds,
+          ManagementPage.reports
         }.contains(page)) _refreshLocalOrders();
-        if (page == ManagementPage.dashboard) _refreshRatings();
+        if ({ManagementPage.dashboard, ManagementPage.reports}.contains(page))
+          _refreshRatings();
       });
     }
   }
@@ -97,9 +99,11 @@ class _GestaoHomeState extends State<GestaoHome> {
   void go(ManagementPage value) {
     setState(() => page = value);
     if (localDemoEnabled &&
-        {ManagementPage.orders, ManagementPage.kds}.contains(value))
+        {ManagementPage.orders, ManagementPage.kds, ManagementPage.reports}
+            .contains(value))
       _refreshLocalOrders();
-    if (localDemoEnabled && value == ManagementPage.dashboard)
+    if (localDemoEnabled &&
+        {ManagementPage.dashboard, ManagementPage.reports}.contains(value))
       _refreshRatings();
     if (localDemoEnabled && value == ManagementPage.settings)
       _refreshPaymentMethods();
@@ -1063,18 +1067,115 @@ class _GestaoHomeState extends State<GestaoHome> {
                   ]))),
         ]);
 
-  Widget _reports() => _scroll([
-        const Text('Relatórios ilustrativos', style: TextStyle(fontSize: 12)),
-        _label('Vendas da semana'),
-        Card(
-            child: SizedBox(
-                height: 210,
-                child: CustomPaint(painter: _DashboardChartPainter()))),
-        const SizedBox(height: 10),
-        _metric(
-            'Faturamento fictício', 'R\$ 24.580', Icons.trending_up, '+12%'),
-        _metric('Pedidos fictícios', '680', Icons.receipt_long_outlined, '+8%'),
-      ]);
+  Widget _reports() => localDemoEnabled
+      ? _scroll([
+          const Text(
+              'Relatórios do SQLite local · volume estimado, sem faturamento recebido',
+              style: TextStyle(fontSize: 12)),
+          const SizedBox(height: 10),
+          if (_localError != null)
+            Text(_localError!, style: const TextStyle(color: Colors.red)),
+          Wrap(spacing: 10, runSpacing: 10, children: [
+            SizedBox(
+                width: 170,
+                child: _metric('Pedidos totais', '${_localOrders.length}',
+                    Icons.receipt_long_outlined, 'Local')),
+            SizedBox(
+                width: 170,
+                child: _metric(
+                    'Ativos',
+                    '${_localOrders.where((order) => order.status != 'cancelled').length}',
+                    Icons.pending_outlined,
+                    'Local')),
+            SizedBox(
+                width: 170,
+                child: _metric(
+                    'Volume estimado',
+                    money(_localOrders
+                        .where((order) => order.status != 'cancelled')
+                        .fold(0, (sum, order) => sum + order.totalCents)),
+                    Icons.payments_outlined,
+                    'Não recebido')),
+            SizedBox(
+                width: 170,
+                child: _metric(
+                    'Ticket médio',
+                    money(_localOrders
+                                .where((order) => order.status != 'cancelled')
+                                .isEmpty
+                        ? 0
+                        : _localOrders
+                                .where((order) => order.status != 'cancelled')
+                                .fold(0, (sum, order) => sum + order.totalCents) ~/
+                            _localOrders
+                                .where((order) => order.status != 'cancelled')
+                                .length),
+                    Icons.analytics_outlined,
+                    'Local')),
+            SizedBox(
+                width: 170,
+                child: _metric(
+                    'Pagamentos simulados',
+                    '${_localOrders.where((order) => order.paymentSimulated).length}',
+                    Icons.payments,
+                    'Sem cobrança')),
+            SizedBox(
+                width: 170,
+                child: _metric(
+                    'Avaliação média',
+                    (_ratingsSummary?['count'] as int? ?? 0) > 0
+                        ? '⭐ ${_ratingsSummary!['average_stars']}'
+                        : 'Sem notas',
+                    Icons.star_outline,
+                    '${_ratingsSummary?['count'] ?? 0} locais')),
+          ]),
+          _label('Pedidos por canal'),
+          Card(
+              child: Column(children: [
+            for (final (label, channel) in [
+              ('Entrega', 'delivery'),
+              ('Retirada', 'pickup'),
+              ('Mesa', 'table'),
+              ('Balcão', 'counter'),
+            ])
+              ListTile(
+                  dense: true,
+                  title: Text(label),
+                  trailing: Text(
+                      '${_localOrders.where((order) => order.orderChannel == channel && order.status != 'cancelled').length}'),
+                  subtitle: Text(
+                      'cancelados: ${_localOrders.where((order) => order.orderChannel == channel && order.status == 'cancelled').length}')),
+          ])),
+          _label('Formas pretendidas de pagamento'),
+          Card(
+              child: Column(children: [
+            for (final method in ['cash', 'pix', 'card', 'unselected'])
+              ListTile(
+                  dense: true,
+                  title: Text(demoPaymentLabel(method)),
+                  trailing: Text(
+                      '${_localOrders.where((order) => order.paymentMethod == method && order.status != 'cancelled').length}'),
+                  subtitle: method == 'unselected'
+                      ? const Text('mesa e canais sem escolha')
+                      : null),
+          ])),
+          const SizedBox(height: 6),
+          const Text(
+              'Consulta dos últimos 100 pedidos do banco local. Não há recebimento, conciliação financeira ou emisso fiscal.',
+              style: TextStyle(fontSize: 11)),
+        ])
+      : _scroll([
+          const Text('Relatórios ilustrativos', style: TextStyle(fontSize: 12)),
+          _label('Vendas da semana'),
+          Card(
+              child: SizedBox(
+                  height: 210,
+                  child: CustomPaint(painter: _DashboardChartPainter()))),
+          const SizedBox(height: 10),
+          _metric(
+              'Faturamento fictício', 'R\$ 24.580', Icons.trending_up, '+12%'),
+          _metric('Pedidos fictícios', '680', Icons.receipt_long_outlined, '+8%'),
+        ]);
 
   Widget _finance() => _scroll([
         const Text('Valores demonstrativos · sem conciliação ou transações',
