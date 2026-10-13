@@ -167,7 +167,8 @@ class _GestaoHomeState extends State<GestaoHome> {
       if (current[i].id != incoming[i].id ||
           current[i].status != incoming[i].status ||
           current[i].dispatchMode != incoming[i].dispatchMode ||
-          current[i].kitchenPriority != incoming[i].kitchenPriority) {
+          current[i].kitchenPriority != incoming[i].kitchenPriority ||
+          current[i].paymentStatus != incoming[i].paymentStatus) {
         return false;
       }
     }
@@ -358,6 +359,55 @@ class _GestaoHomeState extends State<GestaoHome> {
     }
   }
 
+  /// Explicit laboratory declaration only: no provider, charge or settlement.
+  Future<void> _simulateLocalPayment(DemoOrder order) async {
+    final controller = TextEditingController();
+    final reason = await showDialog<String>(
+        context: context,
+        builder: (context) => AlertDialog(
+              title: Text('Registrar pagamento simulado #${order.id}?'),
+              content: Column(mainAxisSize: MainAxisSize.min, children: [
+                Text(
+                    'Declaração local de teste para ${demoPaymentLabel(order.paymentMethod)} · '
+                    '${money(order.totalCents)}. Nada é cobrado, transferido ou confirmado '
+                    'financeiramente; nenhum provedor de pagamento é acionado.',
+                    style: const TextStyle(fontSize: 13)),
+                const SizedBox(height: 12),
+                TextField(
+                    controller: controller,
+                    autofocus: true,
+                    maxLength: 300,
+                    decoration: const InputDecoration(
+                        labelText: 'Motivo da declaração',
+                        helperText:
+                            'Registro de laboratório; fica no histórico do pedido.')),
+              ]),
+              actions: [
+                TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Voltar')),
+                FilledButton(
+                    onPressed: () {
+                      if (controller.text.trim().length >= 3)
+                        Navigator.pop(context, controller.text.trim());
+                    },
+                    child: const Text('Registrar simulação')),
+              ],
+            ));
+    controller.dispose();
+    if (reason == null || !mounted) return;
+    setState(() => _updatingId = order.id);
+    try {
+      await _localApi.simulatePayment(
+          orderId: order.id, requestKey: newDemoRequestKey(), reason: reason);
+      await _refreshLocalOrders();
+    } catch (error) {
+      if (mounted) setState(() => _localError = '$error');
+    } finally {
+      if (mounted) setState(() => _updatingId = null);
+    }
+  }
+
   String _localOrderTime(DemoOrder order) {
     final date = DateTime.tryParse(order.createdAt)?.toLocal();
     if (date == null) return '';
@@ -418,7 +468,7 @@ class _GestaoHomeState extends State<GestaoHome> {
           subtitle: Text(
               '${order.items.map((item) => '${item.quantity} × ${item.name}').join(', ')}\n'
               '${_localOrderTime(order)}${demoStatusLabel(order.status)} · ${money(order.totalCents)}\n'
-              '${demoPaymentLabel(order.paymentMethod)} · pagamento não processado'),
+              '${demoPaymentLabel(order.paymentMethod)} · pagamento ${demoPaymentStatusLabel(order.paymentStatus)}'),
           isThreeLine: true,
           trailing: Row(mainAxisSize: MainAxisSize.min, children: [
             ({'created', 'preparing'}.contains(order.status) ||
@@ -458,7 +508,9 @@ class _GestaoHomeState extends State<GestaoHome> {
                   ? _showOrderHistory(order)
                   : action == 'priority'
                       ? _setKitchenPriority(order)
-                      : _cancelLocalOrder(order),
+                      : action == 'simulate'
+                          ? _simulateLocalPayment(order)
+                          : _cancelLocalOrder(order),
               itemBuilder: (context) => [
                 const PopupMenuItem(
                     value: 'history', child: Text('Ver histórico')),
@@ -469,6 +521,12 @@ class _GestaoHomeState extends State<GestaoHome> {
                       child: Text(order.kitchenPriority == 'urgent'
                           ? 'Voltar à ordem normal'
                           : 'Marcar prioritário')),
+                if (order.status != 'cancelled' &&
+                    order.paymentMethod != 'unselected' &&
+                    !order.paymentSimulated)
+                  const PopupMenuItem(
+                      value: 'simulate',
+                      child: Text('Registrar pagamento simulado')),
                 if ({'created', 'preparing'}.contains(order.status))
                   const PopupMenuItem(
                       value: 'cancel', child: Text('Cancelar pedido')),

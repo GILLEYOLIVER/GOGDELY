@@ -1204,8 +1204,12 @@ class _HomeScreenState extends State<HomeScreen> {
             _moneyRow('Total do pedido', order.totalCents, bold: true),
             const SizedBox(height: 7),
             Text(
-                '${demoPaymentLabel(order.paymentMethod)} · pagamento não processado',
+                '${demoPaymentLabel(order.paymentMethod)} · pagamento ${demoPaymentStatusLabel(order.paymentStatus)}',
                 style: Theme.of(context).textTheme.bodySmall),
+            if (order.paymentSimulated)
+              Text(
+                  'Declaração de laboratório: nenhuma cobrança ou transferência real aconteceu.',
+                  style: Theme.of(context).textTheme.bodySmall),
           ]),
         ),
       );
@@ -1246,6 +1250,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 style: TextStyle(fontSize: 12)),
           ],
           Text('Status salvo: ${demoStatusLabel(_savedOrder!.status)}'),
+          if (_savedOrder!.paymentSimulated)
+            const Text(
+                'Pagamento simulado no laboratório local. Nenhuma cobrança real foi feita.',
+                style: TextStyle(fontSize: 12)),
           if (_savedOrder!.orderChannel == 'delivery' &&
               _savedOrder!.status == 'ready')
             Text(_savedOrder!.dispatchMode == 'internal'

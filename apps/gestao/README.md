@@ -3,6 +3,8 @@ Protótipo Flutter local para Windows com dashboard, pedidos, KDS, PDV, estoque,
 
 No **KDS**, o menu de ações de um pedido novo ou em preparo permite **Marcar prioritário** e **Voltar à ordem normal**, sempre com motivo. Os prioritários aparecem primeiro; em cada grupo vale a ordem de chegada. A prioridade e seu histórico ficam apenas no SQLite de teste, sem permissões por operador ou setor.
 
+Em **Pedidos**, o menu de ações permite **Registrar pagamento simulado** para pedidos não cancelados com forma de pagamento escolhida, sempre com motivo. O cartão passa a mostrar `pagamento simulado no laboratório (sem cobrança real)` e a declaração fica no histórico do pedido. É apenas registro de teste: nada é cobrado, transferido ou confirmado financeiramente, e nenhum provedor é acionado.
+
 No VS Code, abra a raiz `C:\Projetos\GOGDELY`, selecione `GOGDELY Loja / Restaurante • Gestão (Windows)` em Executar e Depurar e pressione F5. Também é possível abrir somente `apps/gestao`; o arquivo `.vscode/launch.json` dessa pasta oferece o mesmo F5. Para abrir os três apps rapidamente com a API local, use `GOGDELY • Cliente + Gestão + Entregador (F5)` na raiz.
 
 # Cardápio local da Burger House

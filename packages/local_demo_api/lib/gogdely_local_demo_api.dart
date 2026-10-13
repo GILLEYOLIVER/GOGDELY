@@ -36,6 +36,7 @@ class DemoOrder {
     this.paymentMethod = 'unselected',
     this.paymentStatus = 'not_processed',
     this.kitchenPriority = 'normal',
+    this.paymentSettlement = 'none',
     this.pickupCode,
     this.deliveryCode,
     this.dispatchMode = 'internal',
@@ -55,6 +56,7 @@ class DemoOrder {
   final String paymentMethod;
   final String paymentStatus;
   final String kitchenPriority;
+  final String paymentSettlement;
   final String? pickupCode;
   final String? deliveryCode;
   final String dispatchMode;
@@ -77,6 +79,7 @@ class DemoOrder {
     paymentMethod: json['payment_method'] as String? ?? 'unselected',
     paymentStatus: json['payment_status'] as String? ?? 'not_processed',
     kitchenPriority: json['kitchen_priority'] as String? ?? 'normal',
+    paymentSettlement: json['payment_settlement'] as String? ?? 'none',
     pickupCode: json['pickup_code'] as String?,
     deliveryCode: json['delivery_code'] as String?,
     dispatchMode: json['dispatch_mode'] as String? ?? 'internal',
@@ -84,6 +87,9 @@ class DemoOrder {
     deliveryFeeCents: json['delivery_fee_cents'] as int? ?? 0,
     createdAt: json['created_at'] as String? ?? '',
   );
+
+  /// True only for laboratory declarations; never a real financial settlement.
+  bool get paymentSimulated => paymentStatus == 'simulated';
 }
 
 class DemoOrderItem {
@@ -539,6 +545,20 @@ class LocalDemoApi {
         .toList();
   }
 
+  /// Declares a simulated payment for the local pilot. Never a real charge:
+  /// the API only records the explicit laboratory declaration for audit.
+  Future<DemoOrder> simulatePayment({
+    required int orderId,
+    required String requestKey,
+    required String reason,
+  }) async => DemoOrder.fromJson(
+    await _request(
+      'POST',
+      '/orders/$orderId/simulate-payment',
+      body: {'request_key': requestKey, 'reason': reason},
+    ) as Map<String, dynamic>,
+  );
+
   Future<DemoOrder> cancelOrder(int id, String actor, String reason) async =>
       DemoOrder.fromJson(
         await _request(
@@ -591,4 +611,9 @@ String demoPaymentLabel(String value) => switch (value) {
   'pix' => 'Pix',
   'card' => 'Cartão de crédito',
   _ => 'Não escolhido',
+};
+
+String demoPaymentStatusLabel(String value) => switch (value) {
+  'simulated' => 'simulado no laboratório (sem cobrança real)',
+  _ => 'não processado',
 };

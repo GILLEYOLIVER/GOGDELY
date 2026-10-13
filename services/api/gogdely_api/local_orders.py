@@ -110,6 +110,21 @@ def _connect() -> sqlite3.Connection:
         connection.execute("ALTER TABLE demo_orders ADD COLUMN stock_reserved_json TEXT NOT NULL DEFAULT '{}'")
     if "ingredient_reserved_json" not in columns:
         connection.execute("ALTER TABLE demo_orders ADD COLUMN ingredient_reserved_json TEXT NOT NULL DEFAULT '{}'")
+    if "payment_state" not in columns:
+        connection.execute(
+            "ALTER TABLE demo_orders ADD COLUMN payment_state TEXT NOT NULL DEFAULT 'not_processed'")
+    connection.execute("""CREATE TABLE IF NOT EXISTS demo_order_payments (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        order_id INTEGER NOT NULL REFERENCES demo_orders(id),
+        request_key TEXT NOT NULL UNIQUE,
+        method TEXT NOT NULL,
+        amount_cents INTEGER NOT NULL CHECK(amount_cents >= 0),
+        settlement TEXT NOT NULL DEFAULT 'simulated_local',
+        actor TEXT NOT NULL,
+        reason TEXT NOT NULL,
+        created_at TEXT NOT NULL
+    )""")
+    connection.execute("CREATE INDEX IF NOT EXISTS demo_order_payments_order_idx ON demo_order_payments(order_id, id)")
     for old_pickup in connection.execute(
             "SELECT id FROM demo_orders WHERE order_channel='pickup' AND pickup_code IS NULL AND status!='picked_up'"):
         connection.execute("UPDATE demo_orders SET pickup_code=? WHERE id=? AND pickup_code IS NULL",
@@ -254,7 +269,9 @@ def _order(row: sqlite3.Row) -> dict:
     result["items"] = json.loads(result.pop("items_json"))
     result.pop("stock_reserved_json", None)
     result.pop("ingredient_reserved_json", None)
-    result["payment_status"] = "not_processed"
+    result["payment_status"] = result.pop("payment_state")
+    result["payment_settlement"] = ("simulated_local"
+                                    if result["payment_status"] == "simulated" else "none")
     return result
 
 
@@ -365,6 +382,11 @@ class CancelInput(BaseModel):
 
 class KitchenPriorityInput(BaseModel):
     priority: Literal["normal", "urgent"]
+    reason: str = Field(min_length=3, max_length=300)
+
+
+class PaymentSimulationInput(BaseModel):
+    request_key: UUID
     reason: str = Field(min_length=3, max_length=300)
 
 
@@ -1311,6 +1333,55 @@ def cancel_order(order_id: int, payload: CancelInput) -> dict:
             (order_id, from_status, to_status, actor, reason, created_at)
             VALUES (?, ?, 'cancelled', ?, ?, ?)""",
             (order_id, row["status"], payload.actor, reason, now))
+        return _order(db.execute("SELECT * FROM demo_orders WHERE id=?", (order_id,)).fetchone())
+
+
+@router.post("/orders/{order_id}/simulate-payment")
+def simulate_order_payment(order_id: int, payload: PaymentSimulationInput) -> dict:
+    """Record an explicitly simulated payment for the local pilot.
+
+    This is a laboratory declaration only: no provider, charge, transfer or
+    financial settlement happens. `payment_state` stays distinct from any real
+    confirmation and every record is auditable in `demo_order_payments`.
+    """
+    _enabled()
+    reason = payload.reason.strip()
+    if len(reason) < 3:
+        raise HTTPException(status_code=422, detail="Simulation reason required")
+    with _db() as db:
+        db.execute("BEGIN IMMEDIATE")
+        row = db.execute("SELECT * FROM demo_orders WHERE id=? AND tenant_id='local-demo'",
+                         (order_id,)).fetchone()
+        if row is None:
+            raise HTTPException(status_code=404, detail="Demo order not found")
+        same_key = db.execute("SELECT order_id FROM demo_order_payments WHERE request_key=?",
+                              (str(payload.request_key),)).fetchone()
+        if same_key is not None:
+            if same_key["order_id"] == order_id:
+                return _order(db.execute("SELECT * FROM demo_orders WHERE id=?", (order_id,)).fetchone())
+            raise HTTPException(status_code=409, detail="Request key already used by another order")
+        if db.execute("SELECT id FROM demo_order_payments WHERE order_id=?", (order_id,)).fetchone() is not None:
+            raise HTTPException(status_code=409, detail="Payment was already simulated for this order")
+        if row["status"] == "cancelled":
+            raise HTTPException(status_code=409, detail="Cancelled orders cannot receive simulated payments")
+        if row["payment_method"] == "unselected":
+            raise HTTPException(status_code=409, detail="Choose a payment method before simulating payment")
+        now = datetime.now(timezone.utc).isoformat()
+        cursor = db.execute(
+            "UPDATE demo_orders SET payment_state='simulated', updated_at=? "
+            "WHERE id=? AND payment_state='not_processed'", (now, order_id))
+        if cursor.rowcount != 1:
+            raise HTTPException(status_code=409, detail="Order changed; refresh")
+        db.execute("""INSERT INTO demo_order_payments
+            (order_id, request_key, method, amount_cents, settlement, actor, reason, created_at)
+            VALUES (?, ?, ?, ?, 'simulated_local', 'management', ?, ?)""",
+            (order_id, str(payload.request_key), row["payment_method"], row["total_cents"], reason, now))
+        db.execute("""INSERT INTO demo_order_events
+            (order_id, from_status, to_status, actor, reason, created_at)
+            VALUES (?, ?, ?, 'management', ?, ?)""",
+            (order_id, row["status"], row["status"],
+             f"Pagamento simulado ({row['payment_method']}) · {_money(row['total_cents'])} · "
+             f"sem cobrança real · motivo: {reason}", now))
         return _order(db.execute("SELECT * FROM demo_orders WHERE id=?", (order_id,)).fetchone())
 
 

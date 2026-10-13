@@ -553,3 +553,81 @@ def test_table_qr_order_reaches_kitchen_without_delivery(tmp_path, monkeypatch):
     assert client.patch(status_url, json={"status": "in_delivery", "actor": "courier"}).status_code == 409
     assert "Servido" in client.get(created.headers["location"]).text
     assert client.get(f"{base}/mesa/burger-house/M00").status_code == 404
+
+
+def test_local_simulated_payment_is_explicit_idempotent_and_audited(tmp_path, monkeypatch):
+    monkeypatch.setenv("GOGDELY_ENV", "local")
+    monkeypatch.setenv("GOGDELY_LOCAL_DEMO", "1")
+    monkeypatch.setenv("GOGDELY_LOCAL_DB", str(tmp_path / "simulated.sqlite3"))
+    client = TestClient(app)
+    base = "/api/v1/local"
+
+    def create_order(**overrides):
+        payload = {
+            "request_key": str(uuid4()),
+            "store_id": "burger-house",
+            "address_label": "Rua do Simulado, 10",
+            "payment_method": "pix",
+            "items": [{"product_id": "x-tudo", "quantity": 1}],
+        } | overrides
+        response = client.post(f"{base}/orders", json=payload)
+        assert response.status_code == 201
+        return response.json()
+
+    def simulate(order_id, request_key=str(uuid4()), reason="Recebido no balcão do laboratório"):
+        return client.post(f"{base}/orders/{order_id}/simulate-payment",
+                           json={"request_key": request_key, "reason": reason})
+
+    order = create_order()
+    assert order["payment_status"] == "not_processed"
+    assert order["payment_settlement"] == "none"
+
+    request_key = str(uuid4())
+    simulated = simulate(order["id"], request_key=request_key)
+    assert simulated.status_code == 200
+    body = simulated.json()
+    assert body["payment_status"] == "simulated"
+    assert body["payment_settlement"] == "simulated_local"
+    assert body["status"] == "created"
+    assert body["payment_method"] == "pix"
+
+    persisted = client.get(f"{base}/orders/{order['id']}").json()
+    assert persisted["payment_status"] == "simulated"
+    assert persisted["payment_settlement"] == "simulated_local"
+    events = client.get(f"{base}/orders/{order['id']}/events").json()
+    simulated_events = [event for event in events if "Pagamento simulado" in event["reason"]]
+    assert len(simulated_events) == 1
+    assert simulated_events[0]["actor"] == "management"
+    assert simulated_events[0]["from_status"] == simulated_events[0]["to_status"] == "created"
+
+    # Idempotent retry with the same request key; a new key is rejected explicitly.
+    assert simulate(order["id"], request_key=request_key).status_code == 200
+    assert len([event for event in client.get(f"{base}/orders/{order['id']}/events").json()
+                if "Pagamento simulado" in event["reason"]]) == 1
+    assert simulate(order["id"]).status_code == 409
+
+    # A simulated payment does not block the pilot flow.
+    status_url = f"{base}/orders/{order['id']}/status"
+    assert client.patch(status_url, json={"status": "preparing", "actor": "management"}).status_code == 200
+
+    # Guardrails: cancelled orders, unknown orders and weak reasons.
+    cancelled = create_order()
+    assert client.post(f"{base}/orders/{cancelled['id']}/cancel",
+                       json={"actor": "customer", "reason": "Cliente desistiu do pedido"}).status_code == 200
+    assert simulate(cancelled["id"]).status_code == 409
+    assert simulate(999999).status_code == 404
+    assert simulate(order["id"], reason="no").status_code == 422
+
+    # A table order without a chosen method cannot receive a simulated payment.
+    created_table = client.post(f"{base}/mesa/burger-house/M05/pedidos",
+        data={"request_key": str(uuid4()), "qty_x-tudo": "1"}, follow_redirects=False)
+    assert created_table.status_code == 303
+    table_order = next(entry for entry in client.get(f"{base}/orders?store_id=burger-house").json()
+                       if entry["order_channel"] == "table")
+    assert table_order["payment_method"] == "unselected"
+    assert simulate(table_order["id"]).status_code == 409
+
+    # The same request key cannot be reused for a different order.
+    other = create_order()
+    assert simulate(other["id"], request_key=request_key).status_code == 409
+    assert other["payment_status"] == "not_processed"
