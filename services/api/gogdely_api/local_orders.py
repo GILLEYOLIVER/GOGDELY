@@ -81,6 +81,7 @@ def _connect() -> sqlite3.Connection:
         delivery_fee_cents INTEGER NOT NULL,
         total_cents INTEGER NOT NULL,
         status TEXT NOT NULL,
+        kitchen_priority TEXT NOT NULL DEFAULT 'normal',
         payment_method TEXT NOT NULL DEFAULT 'unselected',
         pickup_code TEXT,
         delivery_code TEXT,
@@ -91,6 +92,8 @@ def _connect() -> sqlite3.Connection:
         updated_at TEXT NOT NULL
     )""")
     columns = {row["name"] for row in connection.execute("PRAGMA table_info(demo_orders)")}
+    if "kitchen_priority" not in columns:
+        connection.execute("ALTER TABLE demo_orders ADD COLUMN kitchen_priority TEXT NOT NULL DEFAULT 'normal'")
     if "table_code" not in columns:
         connection.execute("ALTER TABLE demo_orders ADD COLUMN table_code TEXT")
     if "order_channel" not in columns:
@@ -357,6 +360,11 @@ class StatusInput(BaseModel):
 
 class CancelInput(BaseModel):
     actor: Literal["customer", "management"]
+    reason: str = Field(min_length=3, max_length=300)
+
+
+class KitchenPriorityInput(BaseModel):
+    priority: Literal["normal", "urgent"]
     reason: str = Field(min_length=3, max_length=300)
 
 
@@ -1225,6 +1233,35 @@ def order_events(order_id: int) -> list[dict]:
         return [dict(event) for event in db.execute(
             "SELECT id, order_id, from_status, to_status, actor, reason, created_at FROM demo_order_events WHERE order_id=? ORDER BY id",
             (order_id,))]
+
+
+@router.put("/orders/{order_id}/kitchen-priority")
+def set_kitchen_priority(order_id: int, payload: KitchenPriorityInput) -> dict:
+    """Prioritize one Burger House order in the local kitchen queue only."""
+    _enabled()
+    reason = payload.reason.strip()
+    if len(reason) < 3:
+        raise HTTPException(status_code=422, detail="Priority reason required")
+    with _db() as db:
+        db.execute("BEGIN IMMEDIATE")
+        row = db.execute("""SELECT * FROM demo_orders WHERE id=?
+            AND tenant_id='local-demo' AND store_id='burger-house'""", (order_id,)).fetchone()
+        if row is None:
+            raise HTTPException(status_code=404, detail="Burger House order not found")
+        if row["status"] not in ("created", "preparing"):
+            raise HTTPException(status_code=409, detail="Only pending kitchen orders can change priority")
+        if row["kitchen_priority"] == payload.priority:
+            return _order(row)
+        now = datetime.now(timezone.utc).isoformat()
+        db.execute("""UPDATE demo_orders SET kitchen_priority=?, updated_at=?
+            WHERE id=?""", (payload.priority, now, order_id))
+        label = "Prioridade urgente" if payload.priority == "urgent" else "Prioridade normal"
+        db.execute("""INSERT INTO demo_order_events
+            (order_id, from_status, to_status, actor, reason, created_at)
+            VALUES (?, ?, ?, 'management_kds', ?, ?)""",
+            (order_id, row["status"], row["status"], f"{label} · motivo: {reason}", now))
+        updated = db.execute("SELECT * FROM demo_orders WHERE id=?", (order_id,)).fetchone()
+        return _order(updated)
 
 
 @router.post("/orders/{order_id}/cancel")

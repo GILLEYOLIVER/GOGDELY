@@ -1,6 +1,8 @@
 # GOGDELY Gestão
 Protótipo Flutter local para Windows com dashboard, pedidos, KDS, PDV, estoque, relatórios, financeiro e configurações. Com `GOGDELY_LOCAL_API=true`, dashboard, pedidos e KDS consultam automaticamente a API local a cada 3 segundos e mostram apenas pedidos fictícios da Burger House; os botões salvam os estados de preparo e pronto. Estoque mostra saldos locais por produto configurados no Cardápio, com baixa por pedido e reposição por cancelamento elegível. O PDV local registra pedidos de balcão e os envia ao KDS, sem processar pagamento. Relatórios e financeiro permanecem ilustrativos; o filtro local não equivale a autorização multiempresa.
 
+No **KDS**, o menu de ações de um pedido novo ou em preparo permite **Marcar prioritário** e **Voltar à ordem normal**, sempre com motivo. Os prioritários aparecem primeiro; em cada grupo vale a ordem de chegada. A prioridade e seu histórico ficam apenas no SQLite de teste, sem permissões por operador ou setor.
+
 No VS Code, abra a raiz `C:\Projetos\GOGDELY`, selecione `GOGDELY Loja / Restaurante • Gestão (Windows)` em Executar e Depurar e pressione F5. Também é possível abrir somente `apps/gestao`; o arquivo `.vscode/launch.json` dessa pasta oferece o mesmo F5. Para abrir os três apps rapidamente com a API local, use `GOGDELY • Cliente + Gestão + Entregador (F5)` na raiz.
 
 # Cardápio local da Burger House

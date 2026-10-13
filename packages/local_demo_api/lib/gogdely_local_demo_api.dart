@@ -35,6 +35,7 @@ class DemoOrder {
     this.orderChannel = 'delivery',
     this.paymentMethod = 'unselected',
     this.paymentStatus = 'not_processed',
+    this.kitchenPriority = 'normal',
     this.pickupCode,
     this.deliveryCode,
     this.dispatchMode = 'internal',
@@ -53,6 +54,7 @@ class DemoOrder {
   final String orderChannel;
   final String paymentMethod;
   final String paymentStatus;
+  final String kitchenPriority;
   final String? pickupCode;
   final String? deliveryCode;
   final String dispatchMode;
@@ -74,6 +76,7 @@ class DemoOrder {
     orderChannel: json['order_channel'] as String? ?? 'delivery',
     paymentMethod: json['payment_method'] as String? ?? 'unselected',
     paymentStatus: json['payment_status'] as String? ?? 'not_processed',
+    kitchenPriority: json['kitchen_priority'] as String? ?? 'normal',
     pickupCode: json['pickup_code'] as String?,
     deliveryCode: json['delivery_code'] as String?,
     dispatchMode: json['dispatch_mode'] as String? ?? 'internal',
@@ -545,6 +548,15 @@ class LocalDemoApi {
         ) as Map<String, dynamic>,
       );
 
+  Future<DemoOrder> setKitchenPriority({
+    required int orderId,
+    required String priority,
+    required String reason,
+  }) async => DemoOrder.fromJson(
+    await _request('PUT', '/orders/$orderId/kitchen-priority',
+        body: {'priority': priority, 'reason': reason}) as Map<String, dynamic>,
+  );
+
   Future<DemoOrder> dispatchInternal(int id) async => DemoOrder.fromJson(
     await _request('POST', '/orders/$id/dispatch-internal')
         as Map<String, dynamic>,
@@ -568,6 +580,7 @@ String demoStatusLabel(String value) => switch (value) {
 String demoActorLabel(String value) => switch (value) {
   'customer' => 'Cliente',
   'management' => 'Gestão',
+  'management_kds' => 'Gestão · cozinha',
   'courier' => 'Entregador',
   'table_guest' => 'Cliente na mesa',
   _ => value,

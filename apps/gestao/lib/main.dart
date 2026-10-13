@@ -166,7 +166,8 @@ class _GestaoHomeState extends State<GestaoHome> {
     for (var i = 0; i < current.length; i++) {
       if (current[i].id != incoming[i].id ||
           current[i].status != incoming[i].status ||
-          current[i].dispatchMode != incoming[i].dispatchMode) {
+          current[i].dispatchMode != incoming[i].dispatchMode ||
+          current[i].kitchenPriority != incoming[i].kitchenPriority) {
         return false;
       }
     }
@@ -314,6 +315,49 @@ class _GestaoHomeState extends State<GestaoHome> {
     }
   }
 
+  Future<void> _setKitchenPriority(DemoOrder order) async {
+    final priority = order.kitchenPriority == 'urgent' ? 'normal' : 'urgent';
+    final controller = TextEditingController();
+    final reason = await showDialog<String>(
+        context: context,
+        builder: (context) => AlertDialog(
+              title: Text(priority == 'urgent'
+                  ? 'Priorizar pedido #${order.id}'
+                  : 'Voltar pedido #${order.id} à ordem normal'),
+              content: TextField(
+                controller: controller,
+                autofocus: true,
+                maxLength: 300,
+                decoration: const InputDecoration(
+                    labelText: 'Motivo da mudança de prioridade'),
+              ),
+              actions: [
+                TextButton(
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text('Voltar')),
+                FilledButton(
+                    onPressed: () {
+                      if (controller.text.trim().length >= 3) {
+                        Navigator.pop(context, controller.text.trim());
+                      }
+                    },
+                    child: const Text('Salvar prioridade')),
+              ],
+            ));
+    controller.dispose();
+    if (reason == null || !mounted) return;
+    setState(() => _updatingId = order.id);
+    try {
+      await _localApi.setKitchenPriority(
+          orderId: order.id, priority: priority, reason: reason);
+      await _refreshLocalOrders();
+    } catch (error) {
+      if (mounted) setState(() => _localError = '$error');
+    } finally {
+      if (mounted) setState(() => _updatingId = null);
+    }
+  }
+
   String _localOrderTime(DemoOrder order) {
     final date = DateTime.tryParse(order.createdAt)?.toLocal();
     if (date == null) return '';
@@ -334,8 +378,17 @@ class _GestaoHomeState extends State<GestaoHome> {
             (order.status == 'ready' &&
                 (order.orderChannel != 'delivery' ||
                     order.dispatchMode == 'pending')))
-        .take(maxItems ?? _localOrders.length)
         .toList();
+    if (kitchenOnly) {
+      visible.sort((a, b) {
+        final urgency = (b.kitchenPriority == 'urgent' ? 1 : 0)
+            .compareTo(a.kitchenPriority == 'urgent' ? 1 : 0);
+        return urgency != 0 ? urgency : a.id.compareTo(b.id);
+      });
+    }
+    if (maxItems != null && visible.length > maxItems) {
+      visible.removeRange(maxItems, visible.length);
+    }
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
       Row(children: [
         Expanded(
@@ -359,7 +412,8 @@ class _GestaoHomeState extends State<GestaoHome> {
       for (final order in visible)
         Card(
             child: ListTile(
-          title: Text('#${order.id} · ${order.storeName}'
+          title: Text(
+              '${order.kitchenPriority == 'urgent' ? 'PRIORITÁRIO · ' : ''}#${order.id} · ${order.storeName}'
               '${order.tableCode != null ? ' · Mesa ${order.tableCode}' : order.orderChannel == 'pickup' ? ' · Retirada' : order.orderChannel == 'counter' ? ' · Balcão' : ' · Entrega'}'),
           subtitle: Text(
               '${order.items.map((item) => '${item.quantity} × ${item.name}').join(', ')}\n'
@@ -402,10 +456,19 @@ class _GestaoHomeState extends State<GestaoHome> {
               tooltip: 'Ações do pedido',
               onSelected: (action) => action == 'history'
                   ? _showOrderHistory(order)
-                  : _cancelLocalOrder(order),
+                  : action == 'priority'
+                      ? _setKitchenPriority(order)
+                      : _cancelLocalOrder(order),
               itemBuilder: (context) => [
                 const PopupMenuItem(
                     value: 'history', child: Text('Ver histórico')),
+                if (kitchenOnly &&
+                    {'created', 'preparing'}.contains(order.status))
+                  PopupMenuItem(
+                      value: 'priority',
+                      child: Text(order.kitchenPriority == 'urgent'
+                          ? 'Voltar à ordem normal'
+                          : 'Marcar prioritário')),
                 if ({'created', 'preparing'}.contains(order.status))
                   const PopupMenuItem(
                       value: 'cancel', child: Text('Cancelar pedido')),
