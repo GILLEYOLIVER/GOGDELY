@@ -40,6 +40,17 @@ O Master consome `/api/v1/local/master/overview`, `/companies`, `/plans`, `/comp
 
 As páginas de mesa agora são SEO-prontas ([docs/SEO.md](../docs/SEO.md)): slug público `/m/burger-house/{mesa}` (usado pelo QR e pelos links internos), metadados completos (título, descrição, Open Graph, canonical e JSON-LD de cardápio **somente** quando `GOGDELY_PUBLIC_BASE_URL` é configurado), `robots.txt` e `sitemap.xml` dinâmicos (bloqueiam tudo no laboratório e anunciam os cardápios no modo público), verificação do Google Search Console via `GOGDELY_GSC_VERIFICATION` e HTTPS obrigatório em produção via `GOGDELY_REQUIRE_HTTPS` com HSTS. Recibos e fichas de impressão permanecem `noindex` permanentemente.
 
+## Acessar o QR de mesa pelo celular na mesma rede (LAN)
+
+O perfil F5 **GOGDELY API • Banco local na rede (LAN)** sobe a mesma API em `0.0.0.0:8765`, permitindo abrir os cardápios de QR no navegador do celular:
+
+1. Inicie o perfil LAN (ele substitui o perfil local padrão enquanto estiver ativo).
+2. Descubra o IP do computador na rede (ex.: `ipconfig` → `192.168.0.10`).
+3. No navegador do celular, abra `http://192.168.0.10:8765/m/burger-house/M01` — o pedido vai para a mesma fila/KDS da Gestão.
+4. Para gerar QRs que funcionem no celular, abra a ficha de impressão **pelo IP da rede** (`http://192.168.0.10:8765/api/v1/local/tables/burger-house/M01/print`); o QR codifica o host usado na requisição.
+
+**Segurança:** o servidor na LAN expõe apenas dados fictícios do SQLite local; autorize no Firewall somente rede privada, nunca exponha à internet e encerre o perfil após o teste. A API local não tem autenticação — por isso o limite de rede doméstica/escritório.
+
 Para hospedagem futura, a API lê configuração de ambiente em [gogdely_api/config.py](gogdely_api/config.py) (`GOGDELY_ENV`, `GOGDELY_DATABASE_URL`, `GOGDELY_CORS_ORIGINS`), há `Dockerfile` e modelo `render.yaml` (sem implantação) e a migration de referência para banco gerenciado com `tenant_id` e RLS está em [database/migrations/0001_foundation.sql](../database/migrations/0001_foundation.sql). Segredos nunca ficam no repositório.
 
 Para uma entrega nova, a Gestão marca o pedido como **Pronto** e depois usa **Enviar ao Entregador**. Só então o pedido aparece no app Entregador e pode iniciar a rota local. O Cliente vê quando a loja o encaminhou. Pedidos de entrega já existentes mantêm a disponibilidade anterior; esta etapa não atribui uma pessoa específica nem aciona parceiros externos.
