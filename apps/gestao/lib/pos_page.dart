@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:gogdely_local_demo_api/gogdely_local_demo_api.dart';
+import 'pos_register_panel.dart';
 
 /// One-store, opt-in local counter orders. Payment is never confirmed here.
 class PosPage extends StatefulWidget {
@@ -127,6 +128,8 @@ class _PosPageState extends State<PosPage> {
               'A forma escolhida é apenas uma intenção; nenhum pagamento é processado ou confirmado.',
               style: TextStyle(fontSize: 12)),
           const SizedBox(height: 10),
+          PosRegisterPanel(api: widget.api),
+          const SizedBox(height: 10),
           OutlinedButton.icon(
             onPressed: _refresh,
             icon: const Icon(Icons.refresh),
@@ -204,8 +207,8 @@ class _PosPageState extends State<PosPage> {
               style: const TextStyle(fontWeight: FontWeight.w800)),
           const SizedBox(height: 12),
           DropdownButtonFormField<String>(
-        key: ValueKey('${_paymentMethods.join(',')}:$_paymentMethod'),
-        initialValue: _paymentMethod,
+            key: ValueKey('${_paymentMethods.join(',')}:$_paymentMethod'),
+            initialValue: _paymentMethod,
             decoration: const InputDecoration(labelText: 'Forma pretendida'),
             items: [
               for (final method in _paymentMethods)

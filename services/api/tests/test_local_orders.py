@@ -440,6 +440,48 @@ def test_local_counter_sale_uses_menu_stock_and_kitchen(tmp_path, monkeypatch):
     assert client.get(f"/api/v1/local/orders/{order['id']}/events").json()[0]["actor"] == "management_pos"
 
 
+def test_local_pos_register_open_movements_and_close(tmp_path, monkeypatch):
+    monkeypatch.setenv("GOGDELY_ENV", "local")
+    monkeypatch.setenv("GOGDELY_LOCAL_DEMO", "1")
+    monkeypatch.setenv("GOGDELY_LOCAL_DB", str(tmp_path / "register.sqlite3"))
+    client = TestClient(app)
+    base = "/api/v1/local/stores/burger-house/pos-register"
+    assert client.get(base).json() == {"active": None, "recent": []}
+    assert client.post(f"{base}/movements", json={
+        "request_key": str(uuid4()), "movement_type": "supply",
+        "amount_cents": 100, "reason": "Troco inicial",
+    }).status_code == 409
+    opening = {"request_key": str(uuid4()), "opening_cents": 1000,
+               "reason": "Abertura de teste"}
+    opened = client.post(f"{base}/open", json=opening)
+    assert opened.status_code == 201
+    assert opened.json()["expected_cash_cents"] == 1000
+    assert client.post(f"{base}/open", json=opening).json()["id"] == opened.json()["id"]
+    assert client.post(f"{base}/open", json={**opening, "request_key": str(uuid4())}).status_code == 409
+    supply = {"request_key": str(uuid4()), "movement_type": "supply",
+              "amount_cents": 500, "reason": "Reforço de troco"}
+    assert client.post(f"{base}/movements", json=supply).json()["session"]["expected_cash_cents"] == 1500
+    assert client.post(f"{base}/movements", json=supply).json()["session"]["expected_cash_cents"] == 1500
+    assert client.post(f"{base}/movements", json={**supply, "amount_cents": 600}).status_code == 409
+    withdrawal = {"request_key": str(uuid4()), "movement_type": "withdrawal",
+                  "amount_cents": 200, "reason": "Retirada de teste"}
+    assert client.post(f"{base}/movements", json=withdrawal).json()["session"]["expected_cash_cents"] == 1300
+    assert client.post(f"{base}/movements", json={**withdrawal,
+        "request_key": str(uuid4()), "amount_cents": 1301}).status_code == 409
+    assert client.get(base).json()["active"]["expected_cash_cents"] == 1300
+    closing = {"request_key": str(uuid4()), "counted_cents": 1200,
+               "reason": "Fechamento de teste"}
+    closed = client.post(f"{base}/close", json=closing)
+    assert closed.status_code == 200
+    assert closed.json()["difference_cents"] == -100
+    assert client.post(f"{base}/close", json=closing).json()["id"] == closed.json()["id"]
+    assert client.post(f"{base}/close", json={**closing, "request_key": str(uuid4())}).status_code == 409
+    result = client.get(base).json()
+    assert result["active"] is None
+    assert result["recent"][0]["id"] == opened.json()["id"]
+    assert len(result["recent"][0]["movements"]) == 2
+
+
 def test_table_qr_order_reaches_kitchen_without_delivery(tmp_path, monkeypatch):
     monkeypatch.setenv("GOGDELY_ENV", "local")
     monkeypatch.setenv("GOGDELY_LOCAL_DEMO", "1")

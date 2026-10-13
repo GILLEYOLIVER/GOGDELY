@@ -176,6 +176,32 @@ def _connect() -> sqlite3.Connection:
         created_at TEXT NOT NULL
     )""")
     connection.execute("CREATE INDEX IF NOT EXISTS demo_stock_movements_store_idx ON demo_stock_movements(store_id, id)")
+    connection.execute("""CREATE TABLE IF NOT EXISTS demo_pos_sessions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        store_id TEXT NOT NULL,
+        open_request_key TEXT NOT NULL UNIQUE,
+        close_request_key TEXT UNIQUE,
+        status TEXT NOT NULL CHECK(status IN ('open', 'closed')),
+        opening_cents INTEGER NOT NULL CHECK(opening_cents >= 0),
+        counted_cents INTEGER CHECK(counted_cents >= 0),
+        opening_reason TEXT NOT NULL,
+        closing_reason TEXT,
+        opened_at TEXT NOT NULL,
+        closed_at TEXT
+    )""")
+    connection.execute("""CREATE UNIQUE INDEX IF NOT EXISTS demo_pos_one_open_idx
+        ON demo_pos_sessions(store_id) WHERE status='open'""")
+    connection.execute("""CREATE TABLE IF NOT EXISTS demo_pos_cash_movements (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        session_id INTEGER NOT NULL REFERENCES demo_pos_sessions(id),
+        request_key TEXT NOT NULL UNIQUE,
+        movement_type TEXT NOT NULL CHECK(movement_type IN ('supply', 'withdrawal')),
+        amount_cents INTEGER NOT NULL CHECK(amount_cents > 0),
+        reason TEXT NOT NULL,
+        actor TEXT NOT NULL,
+        created_at TEXT NOT NULL
+    )""")
+    connection.execute("CREATE INDEX IF NOT EXISTS demo_pos_cash_session_idx ON demo_pos_cash_movements(session_id, id)")
     connection.execute("""CREATE TABLE IF NOT EXISTS demo_ingredients (
         store_id TEXT NOT NULL,
         ingredient_id TEXT NOT NULL,
@@ -293,6 +319,25 @@ class PosSaleInput(BaseModel):
     request_key: UUID
     items: list[ItemInput] = Field(min_length=1, max_length=30)
     payment_method: Literal["cash", "pix", "card"]
+
+
+class PosOpenInput(BaseModel):
+    request_key: UUID
+    opening_cents: int = Field(ge=0, le=10000000)
+    reason: str = Field(min_length=3, max_length=300)
+
+
+class PosCashMovementInput(BaseModel):
+    request_key: UUID
+    movement_type: Literal["supply", "withdrawal"]
+    amount_cents: int = Field(ge=1, le=10000000)
+    reason: str = Field(min_length=3, max_length=300)
+
+
+class PosCloseInput(BaseModel):
+    request_key: UUID
+    counted_cents: int = Field(ge=0, le=10000000)
+    reason: str = Field(min_length=3, max_length=300)
 
 
 class PaymentMethodsInput(BaseModel):
@@ -887,6 +932,124 @@ def create_order(payload: OrderInput) -> dict:
     if payload.order_channel == "counter":
         raise HTTPException(status_code=422, detail="Counter orders use the local POS endpoint")
     return _create_order(payload)
+
+
+def _pos_session(db: sqlite3.Connection, row: sqlite3.Row) -> dict:
+    movements = [dict(movement) for movement in db.execute("""SELECT id, movement_type,
+        amount_cents, reason, actor, created_at FROM demo_pos_cash_movements
+        WHERE session_id=? ORDER BY id""", (row["id"],))]
+    expected = row["opening_cents"] + sum(
+        movement["amount_cents"] if movement["movement_type"] == "supply"
+        else -movement["amount_cents"] for movement in movements)
+    result = dict(row)
+    result.pop("open_request_key", None)
+    result.pop("close_request_key", None)
+    result["expected_cash_cents"] = expected
+    result["difference_cents"] = (row["counted_cents"] - expected
+                                   if row["counted_cents"] is not None else None)
+    result["movements"] = movements
+    return result
+
+
+@router.get("/stores/burger-house/pos-register")
+def get_pos_register() -> dict:
+    _enabled()
+    with _db() as db:
+        active = db.execute("""SELECT * FROM demo_pos_sessions
+            WHERE store_id='burger-house' AND status='open'""").fetchone()
+        recent = db.execute("""SELECT * FROM demo_pos_sessions
+            WHERE store_id='burger-house' AND status='closed'
+            ORDER BY id DESC LIMIT 5""").fetchall()
+        return {"active": _pos_session(db, active) if active else None,
+                "recent": [_pos_session(db, row) for row in recent]}
+
+
+@router.post("/stores/burger-house/pos-register/open", status_code=201)
+def open_pos_register(payload: PosOpenInput) -> dict:
+    _enabled()
+    reason = payload.reason.strip()
+    if len(reason) < 3:
+        raise HTTPException(status_code=422, detail="Opening reason required")
+    with _db() as db:
+        db.execute("BEGIN IMMEDIATE")
+        key = str(payload.request_key)
+        existing = db.execute("SELECT * FROM demo_pos_sessions WHERE open_request_key=?", (key,)).fetchone()
+        if existing:
+            if existing["opening_cents"] != payload.opening_cents or existing["opening_reason"] != reason:
+                raise HTTPException(status_code=409, detail="Opening key reused with different data")
+            return _pos_session(db, existing)
+        if db.execute("""SELECT 1 FROM demo_pos_sessions
+            WHERE store_id='burger-house' AND status='open'""").fetchone():
+            raise HTTPException(status_code=409, detail="Register already open")
+        now = datetime.now(timezone.utc).isoformat()
+        cursor = db.execute("""INSERT INTO demo_pos_sessions
+            (store_id, open_request_key, status, opening_cents, opening_reason, opened_at)
+            VALUES ('burger-house', ?, 'open', ?, ?, ?)""",
+            (key, payload.opening_cents, reason, now))
+        return _pos_session(db, db.execute("SELECT * FROM demo_pos_sessions WHERE id=?",
+                                           (cursor.lastrowid,)).fetchone())
+
+
+@router.post("/stores/burger-house/pos-register/movements", status_code=201)
+def add_pos_cash_movement(payload: PosCashMovementInput) -> dict:
+    _enabled()
+    reason = payload.reason.strip()
+    if len(reason) < 3:
+        raise HTTPException(status_code=422, detail="Movement reason required")
+    with _db() as db:
+        db.execute("BEGIN IMMEDIATE")
+        key = str(payload.request_key)
+        existing = db.execute("SELECT * FROM demo_pos_cash_movements WHERE request_key=?", (key,)).fetchone()
+        if existing:
+            if (existing["movement_type"] != payload.movement_type or
+                    existing["amount_cents"] != payload.amount_cents or
+                    existing["reason"] != reason):
+                raise HTTPException(status_code=409, detail="Movement key reused with different data")
+            session = db.execute("SELECT * FROM demo_pos_sessions WHERE id=?",
+                                 (existing["session_id"],)).fetchone()
+            return {"movement": dict(existing), "session": _pos_session(db, session)}
+        session = db.execute("""SELECT * FROM demo_pos_sessions
+            WHERE store_id='burger-house' AND status='open'""").fetchone()
+        if session is None:
+            raise HTTPException(status_code=409, detail="Open the register first")
+        current = _pos_session(db, session)["expected_cash_cents"]
+        if payload.movement_type == "withdrawal" and payload.amount_cents > current:
+            raise HTTPException(status_code=409, detail="Withdrawal exceeds declared cash")
+        now = datetime.now(timezone.utc).isoformat()
+        cursor = db.execute("""INSERT INTO demo_pos_cash_movements
+            (session_id, request_key, movement_type, amount_cents, reason, actor, created_at)
+            VALUES (?, ?, ?, ?, ?, 'management_local', ?)""",
+            (session["id"], key, payload.movement_type, payload.amount_cents, reason, now))
+        movement = dict(db.execute("SELECT * FROM demo_pos_cash_movements WHERE id=?",
+                                   (cursor.lastrowid,)).fetchone())
+        return {"movement": movement, "session": _pos_session(db, session)}
+
+
+@router.post("/stores/burger-house/pos-register/close")
+def close_pos_register(payload: PosCloseInput) -> dict:
+    _enabled()
+    reason = payload.reason.strip()
+    if len(reason) < 3:
+        raise HTTPException(status_code=422, detail="Closing reason required")
+    with _db() as db:
+        db.execute("BEGIN IMMEDIATE")
+        key = str(payload.request_key)
+        existing = db.execute("SELECT * FROM demo_pos_sessions WHERE close_request_key=?",
+                              (key,)).fetchone()
+        if existing:
+            if existing["counted_cents"] != payload.counted_cents or existing["closing_reason"] != reason:
+                raise HTTPException(status_code=409, detail="Closing key reused with different data")
+            return _pos_session(db, existing)
+        session = db.execute("""SELECT * FROM demo_pos_sessions
+            WHERE store_id='burger-house' AND status='open'""").fetchone()
+        if session is None:
+            raise HTTPException(status_code=409, detail="No open register")
+        now = datetime.now(timezone.utc).isoformat()
+        db.execute("""UPDATE demo_pos_sessions SET status='closed', close_request_key=?,
+            counted_cents=?, closing_reason=?, closed_at=? WHERE id=? AND status='open'""",
+            (key, payload.counted_cents, reason, now, session["id"]))
+        closed = db.execute("SELECT * FROM demo_pos_sessions WHERE id=?", (session["id"],)).fetchone()
+        return _pos_session(db, closed)
 
 
 @router.post("/stores/burger-house/pos-sales", status_code=201)

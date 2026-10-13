@@ -462,6 +462,54 @@ class LocalDemoApi {
     ) as Map<String, dynamic>,
   );
 
+  Future<Map<String, dynamic>> posRegister() async =>
+      await _request('GET', '/stores/burger-house/pos-register')
+          as Map<String, dynamic>;
+
+  Future<Map<String, dynamic>> openPosRegister({
+    required String requestKey,
+    required int openingCents,
+    required String reason,
+  }) async => await _request(
+    'POST',
+    '/stores/burger-house/pos-register/open',
+    body: {
+      'request_key': requestKey,
+      'opening_cents': openingCents,
+      'reason': reason,
+    },
+  ) as Map<String, dynamic>;
+
+  Future<Map<String, dynamic>> recordPosCashMovement({
+    required String requestKey,
+    required String movementType,
+    required int amountCents,
+    required String reason,
+  }) async => await _request(
+    'POST',
+    '/stores/burger-house/pos-register/movements',
+    body: {
+      'request_key': requestKey,
+      'movement_type': movementType,
+      'amount_cents': amountCents,
+      'reason': reason,
+    },
+  ) as Map<String, dynamic>;
+
+  Future<Map<String, dynamic>> closePosRegister({
+    required String requestKey,
+    required int countedCents,
+    required String reason,
+  }) async => await _request(
+    'POST',
+    '/stores/burger-house/pos-register/close',
+    body: {
+      'request_key': requestKey,
+      'counted_cents': countedCents,
+      'reason': reason,
+    },
+  ) as Map<String, dynamic>;
+
   Future<DemoOrder> updateStatus(
     int id,
     String status,
