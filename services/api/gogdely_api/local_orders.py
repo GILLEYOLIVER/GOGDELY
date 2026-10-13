@@ -307,11 +307,42 @@ def _table_code(value: str) -> str:
     return value
 
 
-def _html_page(title: str, body: str, *, refresh: bool = False) -> HTMLResponse:
+def _html_page(title: str, body: str, *, refresh: bool = False,
+               description: str | None = None,
+               canonical_path: str | None = None,
+               indexable: bool = False,
+               jsonld: str = "") -> HTMLResponse:
+    """SEO-ready HTML shell for the local pilot pages.
+
+    GOG-020/026: pages stay `noindex` in the laboratory (operational data,
+    no public domain). When GOGDELY_PUBLIC_BASE_URL is configured and the page
+    is explicitly `indexable`, the template emits canonical, Open Graph and
+    JSON-LD tags so the same code works on the future public deployment.
+    """
+    from gogdely_api.config import config
     refresh_tag = '<meta http-equiv="refresh" content="5">' if refresh else ""
+    robots = "index, follow" if (indexable and config.public_web) else "noindex, nofollow"
+    desc = escape(description or f"{title} no GOGDELY.")
+    seo_tags = f'<meta name="description" content="{desc}">'
+    seo_tags += f'<meta name="robots" content="{robots}">'
+    seo_tags += '<meta name="theme-color" content="#2563EB">'
+    if config.public_web and canonical_path:
+        canonical_url = f"{config.public_base_url}{canonical_path}"
+        seo_tags += f'<link rel="canonical" href="{escape(canonical_url, quote=True)}">'
+        seo_tags += (
+            f'<meta property="og:title" content="{escape(title, quote=True)}">'
+            f'<meta property="og:description" content="{desc}">'
+            '<meta property="og:type" content="website">'
+            f'<meta property="og:url" content="{escape(canonical_url, quote=True)}">'
+            f'<meta property="og:image" content="{config.public_base_url}/og-image.png">'
+            '<meta property="og:locale" content="pt_BR">'
+            '<meta name="twitter:card" content="summary_large_image">')
+    if jsonld and config.public_web:
+        seo_tags += (f'<script type="application/ld+json">{jsonld}</script>')
     return HTMLResponse(f"""<!doctype html><html lang="pt-BR"><head>
     <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
     {refresh_tag}<title>{escape(title)} · GOGDELY</title>
+    {seo_tags}
     <style>
     :root{{font-family:system-ui,sans-serif;color:#1e293b;background:#f2f5ff}}
     body{{max-width:640px;margin:0 auto;padding:20px 14px 48px}}
@@ -820,13 +851,15 @@ def local_menu_image(image_name: str) -> FileResponse:
 def table_qr(table_code: str, request: Request) -> Response:
     _enabled()
     _table_code(table_code)
-    target = str(request.url_for("table_menu_page", table_code=table_code))
+    target = str(request.url_for("table_menu_slug", table_code=table_code))
     qr = qrcode.QRCode(border=3, box_size=8)
     qr.add_data(target)
     qr.make(fit=True)
     output = BytesIO()
     qr.make_image(image_factory=qrcode.image.svg.SvgPathImage).save(output)
-    return Response(output.getvalue(), media_type="image/svg+xml",
+    svg = output.getvalue().replace(
+        b"<svg", f"<!-- GOGDELY QR target: {target} -->\n<svg".encode(), 1)
+    return Response(svg, media_type="image/svg+xml",
                     headers={"Cache-Control": "no-store"})
 
 
@@ -834,24 +867,36 @@ def table_qr(table_code: str, request: Request) -> Response:
 def printable_table_qr(table_code: str) -> HTMLResponse:
     _enabled()
     _table_code(table_code)
-    menu_url = f"/api/v1/local/mesa/burger-house/{table_code}"
+    menu_url = f"/m/burger-house/{table_code}"
     qr_url = f"/api/v1/local/tables/burger-house/{table_code}/qr.svg"
     body = (
         '<header><h1>gog<span class="blue">dely.</span></h1>'
         f'<strong>Burger House · Mesa {escape(table_code)}</strong></header>'
         '<div class="card" style="text-align:center">'
         '<h2>Escaneie para abrir o cardápio</h2>'
-        f'<img src="{qr_url}" alt="QR da Mesa {escape(table_code)}"'
+        f'<img src="{qr_url}" alt="QR da Mesa {escape(table_code)}" width="300" height="300"'
         ' style="width:min(100%,300px);height:auto">'
         f'<p><a href="{menu_url}">Abrir cardápio da Mesa {escape(table_code)}</a></p>'
         '<small>Prévia local: o QR aponta para o computador que executa a API.</small></div>'
         '<button onclick="window.print()">Imprimir ficha da mesa</button>'
     )
-    return _html_page(f"QR Mesa {table_code}", body)
+    return _html_page(f"QR Mesa {table_code}", body,
+                       description=f"Ficha para imprimir o QR da Mesa {table_code} da Burger House.",
+                       indexable=False)
 
 
-@router.get("/mesa/burger-house/{table_code}", name="table_menu_page")
+@router.get("/mesa/burger-house/{table_code}", name="table_menu_page", include_in_schema=False)
 def table_menu_page(table_code: str) -> HTMLResponse:
+    return _table_menu_page(table_code)
+
+
+@router.get("/m/burger-house/{table_code}", name="table_menu_slug")
+def table_menu_slug(table_code: str) -> HTMLResponse:
+    """Clean public slug for the table menu (SEO-friendly URL)."""
+    return _table_menu_page(table_code)
+
+
+def _table_menu_page(table_code: str) -> HTMLResponse:
     _enabled()
     _table_code(table_code)
     with _db() as db:
@@ -864,7 +909,8 @@ def table_menu_page(table_code: str) -> HTMLResponse:
         image_ref = item["image_ref"]
         if image_ref.startswith("assets/images/"):
             image_ref = f"/api/v1/local/images/{image_ref.rsplit('/', 1)[-1]}"
-        image = f'<img src="{escape(image_ref, quote=True)}" alt="">' if image_ref else ""
+        image = (f'<img src="{escape(image_ref, quote=True)}" alt="{escape(item["name"], quote=True)}"'
+                 ' width="78" height="78" loading="lazy" decoding="async">') if image_ref else ""
         promo = f' · {item["promo_percent"]}% OFF' if item["promo_percent"] else ""
         addons = "".join(
             f'<label style="display:block"><input type="checkbox" name="extra_{escape(item["product_id"], quote=True)}"'
@@ -890,7 +936,30 @@ def table_menu_page(table_code: str) -> HTMLResponse:
         '<p><small>O pedido será enviado à fila da cozinha com o número da mesa e horário.</small></p>'
         '<button type="submit">Enviar pedido da mesa</button></form>'
     )
-    return _html_page(f"Cardápio Mesa {table_code}", body)
+    menu_jsonld = json.dumps({
+        "@context": "https://schema.org",
+        "@type": "MenuSection",
+        "name": f"Cardápio Burger House · Mesa {table_code}",
+        "hasMenu": {
+            "@type": "Menu",
+            "name": "Cardápio Burger House",
+            "hasMenuSection": [
+                {"@type": "MenuSection", "name": item["category"],
+                 "hasMenuItem": [{"@type": "MenuItem", "name": item["name"],
+                                  "description": item["description"],
+                                  "offers": {"@type": "Offer",
+                                             "price": f"{item['effective_price_cents'] / 100:.2f}",
+                                             "priceCurrency": "BRL"}}]}
+                for item in items
+            ],
+        },
+    }, ensure_ascii=False)
+    return _html_page(f"Cardápio Burger House · Mesa {table_code}", body,
+                      description=(f"Peça pelo celular na Burger House: cardápio da Mesa {table_code} "
+                                   "com preços e envio direto para a cozinha. Laboratório local."),
+                      canonical_path=f"/m/burger-house/{table_code}",
+                      indexable=True,
+                      jsonld=menu_jsonld)
 
 
 @router.post("/mesa/burger-house/{table_code}/pedidos")
@@ -962,9 +1031,12 @@ def table_order_receipt(table_code: str, order_id: int) -> HTMLResponse:
         f'<div class="card"><h2>Pedido #{order_id}</h2><p>{created}</p>'
         f'<p>Status: <strong>{escape(labels.get(order["status"], order["status"]))}</strong></p>'
         f'<ul>{lines}</ul><strong>Total estimado: {_money(order["total_cents"])}</strong>'
-        '<p><small>Sem pagamento real. Esta página atualiza o status automaticamente.</small></p></div>'
+        '<p><small>Sem pagamento real. Esta página atualiza o status automaticamente.</small></p>'
+        f'<p><a href="/m/burger-house/{escape(table_code, quote=True)}">Voltar ao cardápio da Mesa {escape(table_code)}</a></p></div>'
     )
-    return _html_page(f"Pedido {order_id}", body, refresh=True)
+    return _html_page(f"Pedido {order_id}", body, refresh=True,
+                      description=f"Acompanhamento local do pedido #{order_id} da Mesa {table_code}.",
+                      indexable=False)
 
 
 @router.get("/health")

@@ -28,6 +28,15 @@ class ApiConfig:
             for origin in os.environ.get("GOGDELY_CORS_ORIGINS", "").split(",")
             if origin.strip()
         ]
+        # SEO (GOG-020/026 public-ready pages): absolute public base URL. Only
+        # when set do pages become indexable, canonical, OG/JSON-LD enabled,
+        # and do robots.txt/sitemap.xml advertise the public pages.
+        self.public_base_url = os.environ.get("GOGDELY_PUBLIC_BASE_URL", "").rstrip("/")
+        # HTTPS is mandatory in production by default; opt-in elsewhere.
+        self.require_https = self._value(
+            "GOGDELY_REQUIRE_HTTPS", "1" if self.environment == "production" else "0") == "1"
+        # Google Search Console ownership token (external configuration).
+        self.gsc_verification = os.environ.get("GOGDELY_GSC_VERIFICATION", "")
 
     @staticmethod
     def _value(name: str, default: str) -> str:
@@ -37,6 +46,11 @@ class ApiConfig:
     @property
     def uses_managed_database(self) -> bool:
         return bool(self.database_url)
+
+    @property
+    def public_web(self) -> bool:
+        """True only when a public base URL is configured for SEO."""
+        return bool(self.public_base_url)
 
 
 config = ApiConfig()

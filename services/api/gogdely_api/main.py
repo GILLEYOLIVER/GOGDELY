@@ -5,6 +5,7 @@ from pydantic import BaseModel
 from gogdely_api.config import config
 from gogdely_api.local_orders import router as local_router
 from gogdely_api.master_local import router as master_router
+from gogdely_api.web_seo import https_and_security_middleware, router as seo_router
 
 app = FastAPI(title="GOGDELY API", version="0.1.0", docs_url="/docs")
 app.add_middleware(
@@ -19,8 +20,10 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PATCH", "PUT"],
     allow_headers=["content-type"],
 )
+app.include_router(seo_router)
 app.include_router(local_router)
 app.include_router(master_router)
+app.middleware("http")(https_and_security_middleware)
 
 
 class HealthResponse(BaseModel):

@@ -4,8 +4,23 @@
   <base href="$FLUTTER_BASE_HREF">
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="GOGDELY laboratório local de dispositivos">
-  <title>GOGDELY • Laboratório</title>
+  <!--
+    SEO (GOG-087/097): metadados da futura frente pública web do Cliente.
+    Enquanto não existir domínio público autorizado pelo proprietário, a página
+    permanece noindex para não expor nada do laboratório. No deploy público:
+    trocar robots por "index, follow", publicar og-image.png no domínio e usar
+    URLs absolutas nos metadados og:* (og:image exige URL absoluta).
+  -->
+  <meta name="description" content="GOGDELY: peça delivery, retiremente na loja ou consuma no local em restaurantes, mercados, farmácias e mais.">
+  <meta name="robots" content="noindex, nofollow">
+  <meta name="theme-color" content="#2563EB">
+  <meta property="og:title" content="GOGDELY — Delivery, retirada e consumo local">
+  <meta property="og:description" content="Peça de restaurantes, mercados, farmácias e mais com entrega, retirada ou consumo no local.">
+  <meta property="og:type" content="website">
+  <meta property="og:locale" content="pt_BR">
+  <meta property="og:image" content="/og-image.png">
+  <link rel="icon" type="image/png" href="favicon.png">
+  <title>GOGDELY — Delivery, retirada e consumo local</title>
 </head>
 <body>
   <script src="flutter_bootstrap.js" async></script>
