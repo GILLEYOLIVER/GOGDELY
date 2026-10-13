@@ -288,6 +288,8 @@ class _HomeScreenState extends State<HomeScreen> {
                 category: item.category,
                 stockQuantity: item.stockQuantity,
                 addons: item.addons,
+                originalPriceCents:
+                    item.promoPercent > 0 ? item.priceCents : null,
               ))
           .toList();
       final updated = DemoStore(
@@ -862,6 +864,30 @@ class _HomeScreenState extends State<HomeScreen> {
           DemoStoreCard(value, onTap: () => openStore(value)),
         if (localDemoEnabled && _pilotStore == null)
           Text(_menuError ?? 'Carregando cardápio local da Burger House...'),
+        if (localDemoEnabled &&
+            _pilotStore != null &&
+            _pilotStore!.products.any((product) => product.badge.isNotEmpty)) ...[
+          _sectionTitle('Promoções da Burger House',
+              onMore: () => openStore(_pilotStore!)),
+          for (final product in _pilotStore!.products
+              .where((product) => product.badge.isNotEmpty)
+              .take(3))
+            Card(
+                child: ListTile(
+              onTap: () => openProduct(product),
+              leading: const Icon(Icons.local_offer_outlined,
+                  color: GogdelyColors.blue),
+              title: Text(product.name,
+                  style: const TextStyle(fontWeight: FontWeight.w700)),
+              subtitle: Text(
+                  '${product.badge} · de ${formatDemoPrice(product.originalPriceCents ?? product.priceCents)} '
+                  'por ${formatDemoPrice(product.priceCents)}'),
+              trailing: const Icon(Icons.chevron_right),
+            )),
+          const Text(
+              'Promoções configuradas pela empresa no laboratório local; a API calcula o preço salvo no pedido.',
+              style: TextStyle(fontSize: 11)),
+        ],
         _sectionTitle('Explore mais'),
         Row(children: [
           Expanded(
@@ -1046,8 +1072,26 @@ class _HomeScreenState extends State<HomeScreen> {
         const SizedBox(height: 5),
         Text(product.description),
         const SizedBox(height: 12),
-        Text(formatDemoPrice(product.priceCents),
-            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+        if (product.originalPriceCents != null &&
+            product.originalPriceCents! > product.priceCents) ...[
+          Row(children: [
+            Text(
+                'De ${formatDemoPrice(product.originalPriceCents!)} por ',
+                style: const TextStyle(
+                    decoration: TextDecoration.lineThrough,
+                    color: GogdelyColors.mutedLight,
+                    fontSize: 14)),
+            Text(formatDemoPrice(product.priceCents),
+                style:
+                    const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+            const SizedBox(width: 8),
+            Text(product.badge,
+                style: const TextStyle(
+                    color: GogdelyColors.blue, fontWeight: FontWeight.w700)),
+          ]),
+        ] else
+          Text(formatDemoPrice(product.priceCents),
+              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
         if (localDemoEnabled && product.stockQuantity != null)
           Text('Saldo local: ${product.stockQuantity} unidades'),
         _sectionTitle('Escolha o tamanho'),

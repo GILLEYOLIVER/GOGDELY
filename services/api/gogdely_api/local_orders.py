@@ -709,6 +709,25 @@ def list_menu() -> list[dict]:
         return items
 
 
+@router.get("/stores/burger-house/promotions")
+def list_promotions() -> list[dict]:
+    """GOG-021: active Burger House discounts, effective price included."""
+    _enabled()
+    with _db() as db:
+        stocks = _ingredient_stocks(db)
+        items = [_menu_item(row) for row in db.execute(
+            "SELECT * FROM demo_menu_items WHERE store_id='burger-house' ORDER BY sort_order, product_id").fetchall()]
+        return [
+            {"product_id": item["product_id"], "name": item["name"],
+             "category": item["category"], "image_ref": item["image_ref"],
+             "promo_percent": item["promo_percent"],
+             "original_cents": item["price_cents"],
+             "effective_cents": item["effective_price_cents"]}
+            for item in items
+            if item["promo_percent"] > 0 and item["available"] and _orderable(item, stocks)
+        ]
+
+
 @router.put("/stores/burger-house/menu-order")
 def reorder_menu(payload: MenuOrderInput) -> list[dict]:
     _enabled()

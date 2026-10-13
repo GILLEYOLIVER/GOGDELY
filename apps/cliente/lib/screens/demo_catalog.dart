@@ -8,7 +8,8 @@ class DemoProduct {
       this.badge = '',
       this.category = '',
       this.stockQuantity,
-      this.addons = const []});
+      this.addons = const [],
+      this.originalPriceCents});
   final String id;
   final String name;
   final String description;
@@ -18,6 +19,9 @@ class DemoProduct {
   final String category;
   final int? stockQuantity;
   final List<DemoAddon> addons;
+
+  /// Original price before the active promotion (GOG-021), null when absent.
+  final int? originalPriceCents;
 }
 
 class DemoStore {

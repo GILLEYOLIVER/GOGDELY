@@ -154,6 +154,16 @@ class DemoProductTile extends StatelessWidget {
                           style: Theme.of(context).textTheme.labelSmall),
                     const SizedBox(height: 3),
                     Row(children: [
+                      if (product.originalPriceCents != null &&
+                          product.originalPriceCents! > product.priceCents)
+                        Padding(
+                            padding: const EdgeInsets.only(right: 7),
+                            child: Text(
+                                formatDemoPrice(product.originalPriceCents!),
+                                style: const TextStyle(
+                                    decoration: TextDecoration.lineThrough,
+                                    color: GogdelyColors.mutedLight,
+                                    fontSize: 12))),
                       Text(formatDemoPrice(product.priceCents),
                           style: const TextStyle(fontWeight: FontWeight.w700)),
                       if (product.badge.isNotEmpty) ...[

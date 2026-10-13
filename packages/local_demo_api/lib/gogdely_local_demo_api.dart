@@ -657,6 +657,13 @@ class LocalDemoApi {
       await _request('GET', '/stores/burger-house/ratings')
           as Map<String, dynamic>;
 
+  /// Active Burger House promotions (GOG-021).
+  Future<List<Map<String, dynamic>>> promotions() async {
+    final result =
+        await _request('GET', '/stores/burger-house/promotions') as List;
+    return result.cast<Map<String, dynamic>>();
+  }
+
   Future<DemoOrder> cancelOrder(int id, String actor, String reason) async =>
       DemoOrder.fromJson(
         await _request(
