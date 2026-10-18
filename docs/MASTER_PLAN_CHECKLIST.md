@@ -155,7 +155,7 @@ Este checklist controla a conclusão de cada decisão sem alterar o texto aprova
 - [ ] **GOG-071** — Flutter Android, iOS, Windows, macOS e Web.
 - [ ] **GOG-072** — Supabase PostgreSQL, Auth, Storage e Realtime.
 - [ ] **GOG-073** — Render para FastAPI e backend.
-- [ ] **GOG-074** — Banco compartilhado tenant_id, RLS e autorização backend. A leitura de vínculos e a migration `0002` estão em `develop`; [roteiro transacional de isolamento](../database/verification/0002_membership_read_policies.sql) preparado. **Pendente:** revisão independente, aplicação em homologação, teste real com duas identidades e autorização dos endpoints de negócio.
+- [ ] **GOG-074** — Banco compartilhado tenant_id, RLS e autorização backend. A leitura de vínculos e a migration `0002` estão em `develop`; [roteiro transacional de isolamento](../database/verification/0002_membership_read_policies.sql) preparado. Em 18/10/2026, a [inspeção da homologação](ONLINE_TENANCY.md#estado-observado-em-18102026) confirmou oito tabelas vazias com RLS forçado, zero políticas e o teste de fundação aprovado. **Pendente:** comparação integral do DDL instalado, backup recuperável, revisão independente, aplicação em homologação, teste real com duas identidades e autorização dos endpoints de negócio.
 - [ ] **GOG-075** — Supabase Auth, login social e MFA por perfil.
 - [ ] **GOG-076** — Cargos e permissões adicionais configuráveis.
 - [ ] **GOG-077** — Ambientes local, testes, homologação e produção isolados.

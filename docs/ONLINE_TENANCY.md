@@ -23,6 +23,24 @@ compradores e entregadores não usam esses vínculos.
 
 ## Verificação antes de aplicar
 
+### Estado observado em 18/10/2026
+
+No projeto isolado **GOGDELY Homologação** (`vlcssgerbhbvekukpzki`), a
+consulta administrativa de leitura confirmou oito tabelas no esquema
+`gogdely`, todas com RLS habilitado e forçado, zero políticas e zero linhas
+em cada uma das oito tabelas. O roteiro `0001_foundation.sql` foi executado
+novamente no SQL Editor e retornou `gogdely test foundation: verified`,
+incluindo a checagem do bucket privado. A página de Auth não exibiu contas
+de teste. Essas observações não comprovam que o DDL instalado é idêntico ao
+arquivo versionado `0001_cloud_foundation.sql`.
+
+O painel de backups do plano gratuito informa que não há backups agendados.
+Nenhum backup manual recuperável foi confirmado. Por isso, a `0002` continua
+**não aplicada**; o roteiro transacional com duas identidades também não foi
+executado. Antes de aplicar, ainda faltam comparação completa do esquema
+instalado, backup recuperável e revisão técnica independente da migration.
+Nenhum serviço pago ou upgrade foi contratado.
+
 - Confirmar que `0001_cloud_foundation.sql` é exatamente o esquema instalado
   na homologação e realizar backup da base.
 - Revisar a migration por pessoa independente e executar testes negativos
