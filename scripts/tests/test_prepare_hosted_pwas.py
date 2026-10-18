@@ -22,10 +22,12 @@ class PrepareHostedPwasTest(unittest.TestCase):
 
             destination = prepare(root)
             for app in APPS:
-                manifest = json.loads((destination / app / "manifest.json").read_text())
+                manifest = json.loads((destination / app / "manifest.json").read_text(encoding="utf-8"))
                 self.assertEqual(manifest["id"], f"/{app}/")
                 self.assertEqual(manifest["start_url"], f"/{app}/")
                 self.assertEqual(manifest["scope"], f"/{app}/")
+                self.assertIn("homologação", manifest["name"])
+                self.assertNotIn("Local", manifest["short_name"])
                 self.assertTrue((destination / app / "version.json").is_file())
             self.assertIn("Não faça pedidos reais", (destination / "index.html").read_text(encoding="utf-8"))
 

@@ -7,6 +7,11 @@ from pathlib import Path
 
 APPS = ("cliente", "gestao", "entregador")
 ROOT = Path(__file__).resolve().parents[1]
+HOSTED_NAMES = {
+    "cliente": ("GOGDELY Cliente — homologação", "GOGDELY Cliente"),
+    "gestao": ("GOGDELY Gestão — homologação", "GOGDELY Gestão"),
+    "entregador": ("GOGDELY Entregador — homologação", "GOGDELY Entrega"),
+}
 
 
 def prepare(root: Path = ROOT) -> Path:
@@ -20,7 +25,11 @@ def prepare(root: Path = ROOT) -> Path:
         shutil.copytree(source, target, dirs_exist_ok=True)
         manifest_path = target / "manifest.json"
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
-        manifest.update({"id": f"/{app}/", "start_url": f"/{app}/", "scope": f"/{app}/"})
+        name, short_name = HOSTED_NAMES[app]
+        manifest.update({
+            "id": f"/{app}/", "start_url": f"/{app}/", "scope": f"/{app}/",
+            "name": name, "short_name": short_name,
+        })
         manifest_path.write_text(
             json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
         )
