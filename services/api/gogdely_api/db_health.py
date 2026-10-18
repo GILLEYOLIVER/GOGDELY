@@ -56,6 +56,11 @@ def foundation_ready(database_url: str) -> bool:
         if not ready:
             logger.warning("database foundation schema is incomplete")
         return ready
+    except ssl.SSLCertVerificationError as exc:
+        # The verification code identifies CA and hostname failures without
+        # logging the connection string, credential, or driver exception text.
+        logger.warning("database TLS verification failed: code=%s", exc.verify_code)
+        return False
     except (OSError, ValueError, pg8000.Error) as exc:
         # Never log exception text: drivers can include connection details.
         logger.warning("database readiness connection failed: %s", type(exc).__name__)
