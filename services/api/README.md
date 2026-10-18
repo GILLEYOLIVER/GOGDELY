@@ -25,7 +25,8 @@ Abrir `http://127.0.0.1:8000/docs` ou `http://127.0.0.1:8000/health`.
 
 - `/health` verifica somente o processo.
 - `/ready` aceita `GOGDELY_DATABASE_URL` ou as variáveis separadas `GOGDELY_DATABASE_HOST`, `GOGDELY_DATABASE_USER`, `GOGDELY_DATABASE_PASSWORD`, `GOGDELY_DATABASE_PORT` (padrão 5432) e `GOGDELY_DATABASE_NAME` (padrão postgres). A senha separada é codificada na URL internamente, inclusive quando contém caracteres especiais. Exige TLS com validação de certificado e oito tabelas `gogdely` com RLS forçado. Responde 503 sem banco ou esquema; não divulga a URL ou exceções de conexão. A CA pública oficial do Supabase está empacotada em `gogdely_api/certs/prod-ca-2021.crt` (SHA-256 `700723581420DD1AC98FD7E9AC529F0EF210EADCAF87FC868A3AD7D114C2F3B7`); a verificação de hostname permanece ativa.
-- Em caso de 503, os logs do servidor registram somente a etapa da falha ou a classe da exceção. Mensagens de erro do driver, URL e segredos não são registrados.
+- No host `*.pooler.supabase.com`, a checagem de prontidão remove apenas `VERIFY_X509_STRICT` porque a CA intermediária atualmente servida pelo pooler não contém a extensão Key Usage (erro OpenSSL 92 no Python recente). A confiança na CA, a validação da cadeia e do hostname continuam obrigatórias. Revisar e retirar esta exceção quando o certificado do pooler for corrigido; não a aplicar a outros hosts.
+- Em caso de 503, os logs do servidor registram somente a etapa da falha, a classe da exceção ou o SQLSTATE validado. Mensagens de erro do driver, URL e segredos não são registrados.
 - `/version.json` mostra somente o SHA fornecido por `RENDER_GIT_COMMIT`, com `Cache-Control: no-store`.
 
 ## Limites

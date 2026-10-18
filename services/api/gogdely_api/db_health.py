@@ -1,6 +1,7 @@
 """Read-only PostgreSQL readiness check for the managed environment."""
 
 import logging
+import re
 import ssl
 from importlib.resources import files
 from urllib.parse import unquote, urlsplit
@@ -65,6 +66,14 @@ def foundation_ready(database_url: str) -> bool:
         # The verification code identifies CA and hostname failures without
         # logging the connection string, credential, or driver exception text.
         logger.warning("database TLS verification failed: code=%s", exc.verify_code)
+        return False
+    except pg8000.DatabaseError as exc:
+        # pg8000 stores PostgreSQL ErrorResponse fields in args[0]. Emit only
+        # the validated five-character SQLSTATE, never server message fields.
+        fields = exc.args[0] if exc.args else None
+        code = fields.get("C") if isinstance(fields, dict) else None
+        safe_code = code if isinstance(code, str) and re.fullmatch(r"[0-9A-Z]{5}", code) else "unknown"
+        logger.warning("database readiness SQLSTATE: %s", safe_code)
         return False
     except (OSError, ValueError, pg8000.Error) as exc:
         # Never log exception text: drivers can include connection details.

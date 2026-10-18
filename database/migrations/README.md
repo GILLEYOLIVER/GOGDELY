@@ -1,6 +1,6 @@
 # Migrações do GOGDELY
 
-As migrações numeradas são a fonte do esquema PostgreSQL. O projeto `GOGDELY Testes` é separado dos projetos de outros produtos e não contém dados reais. Os arquivos não são executados automaticamente pelo deploy do Render.
+As migrações numeradas são a fonte do esquema PostgreSQL. O projeto `GOGDELY Homologação` (antes `GOGDELY Testes`) é separado dos projetos de outros produtos e não contém dados reais. Os arquivos não são executados automaticamente pelo deploy do Render.
 
 ## Ordem
 

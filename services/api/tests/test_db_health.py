@@ -2,6 +2,8 @@
 
 import ssl
 
+import pg8000
+
 from gogdely_api import db_health
 
 
@@ -71,4 +73,15 @@ def test_readiness_logs_only_failure_class(monkeypatch, caplog) -> None:
         "postgresql://user:private-value@db.test/postgres"
     )
     assert "InterfaceError" in caplog.text
+    assert "private-value" not in caplog.text
+
+
+def test_database_error_logs_only_valid_sqlstate(monkeypatch, caplog) -> None:
+    class Connection:
+        def __init__(self, **kwargs):
+            raise pg8000.DatabaseError({"C": "28P01", "M": "password=private-value"})
+
+    monkeypatch.setattr(db_health.pg8000.native, "Connection", Connection)
+    assert not db_health.foundation_ready("postgresql://user:private-value@db.test/postgres")
+    assert "SQLSTATE: 28P01" in caplog.text
     assert "private-value" not in caplog.text
