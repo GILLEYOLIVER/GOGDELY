@@ -3,7 +3,9 @@
 1. Provedor de pagamento: split, recorrência, estornos, chargebacks, conciliação e contratos.
 2. Emissão fiscal nacional: documentos por categoria, jurisdição, contingência e responsabilidade.
 3. Banco offline e sincronização: compatibilidade, idempotência, ordenação e conflitos.
-4. Segurança multiempresa: matriz de permissões, testes RLS e isolamento por filial.
+4. Segurança multiempresa: a primeira verificação de identidade GOG-075 está
+   em branch isolada; faltam memberships, matriz de permissões, testes RLS e
+   isolamento por filial antes de conectar lojas reais.
 5. GPS: consentimento, retenção, proteção do entregador e custos de mapas.
 6. Impressão: protocolos ESC/POS, USB/rede/Bluetooth, filas e compatibilidade desktop.
 7. Testes: metas de cobertura, carga, RPO/RTO e evidências de homologação.
