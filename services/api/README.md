@@ -1,6 +1,9 @@
 # GOGDELY API — bootstrap
 
-**Estado:** API executável mínima em ambiente local e de testes. O Render de testes expõe `/health` e `/api/v1/info`; a branch de preparação acrescenta `/ready` e `/version.json`. Ainda não há autenticação, pedidos ou pagamentos em nuvem.
+**Estado:** API executável mínima em ambiente local e de homologação. O Render
+expõe `/health`, `/ready` e `/version.json`; esta branch também verifica
+identidade no Supabase Auth. Ainda não há autorização de empresa, pedidos ou
+pagamentos em nuvem.
 
 ## Requisitos
 Python 3.11+ no Windows.
@@ -15,6 +18,20 @@ py -3 -m venv .venv
 ```
 
 Abrir `http://127.0.0.1:8000/docs` ou `http://127.0.0.1:8000/health`.
+
+## Identidade Supabase (GOG-075, issue #37)
+
+Configure `GOGDELY_SUPABASE_URL` com o endereço HTTPS do projeto
+`*.supabase.co` e `GOGDELY_SUPABASE_PUBLISHABLE_KEY` **somente no servidor**.
+`GET /api/v1/auth/me` exige `Authorization: Bearer <access_token>`, consulta
+diretamente `/auth/v1/user` no Supabase Auth e devolve apenas o UUID confirmado.
+O token não é decodificado localmente. Sem configuração, com token inválido ou
+com Auth indisponível, o endpoint falha fechado. Não usa chave administrativa.
+
+Esta etapa não autoriza acesso a loja, filial, pedido ou dados privados. A
+próxima etapa precisa consultar vínculos confiáveis no banco e testar RLS entre
+empresas antes de habilitar endpoints de negócio. Consulte
+[`docs/AUTH_IDENTITY.md`](../../docs/AUTH_IDENTITY.md).
 
 ## Testar
 ```powershell

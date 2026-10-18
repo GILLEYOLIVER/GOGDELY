@@ -1,12 +1,14 @@
-"""GOGDELY API bootstrap, without business or payment operations."""
+"""GOGDELY API bootstrap with database readiness and identity verification."""
 import logging
 import os
 from urllib.parse import quote
+from uuid import UUID
 
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
+from gogdely_api.auth import AuthenticatedUser, authenticated_user
 from gogdely_api.db_health import foundation_ready
 
 app = FastAPI(title="GOGDELY API", version="0.1.0", docs_url="/docs")
@@ -31,6 +33,16 @@ def api_info() -> dict[str, str]:
         "api_version": "v1",
         "environment": os.environ.get("GOGDELY_ENV", "local-demo"),
     }
+
+
+class IdentityResponse(BaseModel):
+    user_id: UUID
+
+
+@app.get("/api/v1/auth/me", response_model=IdentityResponse, tags=["identity"])
+def current_identity(user: AuthenticatedUser = Depends(authenticated_user)) -> IdentityResponse:
+    """Expose only the ID confirmed by Supabase Auth, never JWT claims."""
+    return IdentityResponse(user_id=user.user_id)
 
 
 @app.get("/version.json", tags=["system"])
