@@ -91,6 +91,30 @@ Além disso, a API foi exercitada contra esse PostgreSQL local com `manager`,
 200/404 conforme o escopo esperado. O servidor local foi desligado. Ainda
 falta repetir a integração no Supabase de homologação com Auth real.
 
+### Matriz repetível para API + RLS em homologação
+
+Depois do backup, da revisão e da aplicação autorizada da `0002`, criar duas
+identidades descartáveis no Auth e os vínculos de teste em transação controlada.
+Executar cada chamada com um token **real** de Auth da identidade indicada;
+nenhum token deve entrar no repositório, no histórico do terminal ou nas
+evidências. Consultar `GET /api/v1/auth/memberships` e
+`GET /api/v1/management/tenants/{tenant_id}/branches/{branch_id}/context`.
+
+| Identidade e vínculo | Alvo | Resultado esperado |
+| --- | --- | --- |
+| Usuário A, `manager` de A/A1 | A/A1 | 200, papel `manager` |
+| Usuário A, `manager` de A/A1 | A/A2 | 404, `Branch not found` |
+| Usuário A, `manager` de A/A1 | B/B1 | 404, mesma resposta |
+| Usuário B, `staff` de B/B1 | B/B1 | 200, papel `staff` |
+| Usuário B, `staff` de B/B1 | A/A1 | 404, mesma resposta |
+| Usuário A, após promoção a `owner` de A | A/A2 | 200, papel `owner` |
+| Usuário A, após revogação do vínculo | A/A1 e A/A2 | 404 na requisição seguinte |
+| Sem token ou com token inválido | Qualquer filial | 401 |
+
+Registrar projeto, SHA do deploy, IDs fictícios, horários, códigos HTTP e
+revisor. Apagar os vínculos/identidades descartáveis após o ensaio. A passagem
+do roteiro SQL isolado não substitui esta matriz pela API hospedada.
+
 ## Reversão
 
 Em transação, revogar SELECT e USAGE concedidos pela migration e remover as
