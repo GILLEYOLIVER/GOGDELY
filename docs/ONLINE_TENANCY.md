@@ -34,12 +34,20 @@ incluindo a checagem do bucket privado. A página de Auth não exibiu contas
 de teste. Essas observações não comprovam que o DDL instalado é idêntico ao
 arquivo versionado `0001_cloud_foundation.sql`.
 
+Uma inspeção adicional de leitura confirmou colunas/tipos/valores padrão
+compatíveis com a `0001`, 39 restrições, 12 índices e ausência de privilégios
+de `USAGE`/`SELECT` para `anon` e `authenticated`. Isso ainda não equivale a
+um dump completo ou a uma restauração testada.
+
 O painel de backups do plano gratuito informa que não há backups agendados.
 Nenhum backup manual recuperável foi confirmado. Por isso, a `0002` continua
 **não aplicada**; o roteiro transacional com duas identidades também não foi
 executado. Antes de aplicar, ainda faltam comparação completa do esquema
 instalado, backup recuperável e revisão técnica independente da migration.
 Nenhum serviço pago ou upgrade foi contratado.
+O [procedimento de backup manual](../database/migrations/README.md#backup-manual-da-homologação)
+está preparado, mas não foi executado; as ferramentas PostgreSQL e a senha
+do banco devem ser fornecidas localmente no momento da execução.
 
 - Confirmar que `0001_cloud_foundation.sql` é exatamente o esquema instalado
   na homologação e realizar backup da base.

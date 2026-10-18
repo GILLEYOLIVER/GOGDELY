@@ -12,6 +12,37 @@ Cada arquivo deve ser executado uma única vez, em ordem, no projeto de **homolo
 
 ## Verificação
 
+### Backup manual da homologação
+
+O plano gratuito não oferece backup agendado. Antes da `0002`, é possível
+produzir um dump lógico **somente do esquema `gogdely`** com `pg_dump` e
+`pg_restore` oficiais, sem contratar um plano. O script
+[`scripts/backup-gogdely-homologation.ps1`](../../scripts/backup-gogdely-homologation.ps1)
+usa o session pooler IPv4 confirmado para o projeto de homologação, exige o
+certificado CA baixado em **Database > Settings > SSL configuration**, força
+`verify-full` e pede a senha do banco diretamente no terminal. Escolha uma
+pasta privada **fora do repositório** para o arquivo `.dump`. Não copie a senha
+para a linha de comando, variável persistente, Git ou esta conversa.
+
+Exemplo, após instalar as ferramentas oficiais PostgreSQL (`pg_dump` e
+`pg_restore`) no Windows:
+
+```powershell
+.\scripts\backup-gogdely-homologation.ps1 `
+  -OutputDirectory 'C:\GOGDELY-backups' `
+  -CaCertificate 'C:\caminho\prod-ca-2021.crt'
+```
+
+O script confirma que o arquivo não está vazio e que `pg_restore --list`
+consegue lê-lo; isso **não substitui um teste de restauração**. O dump não
+inclui `auth`, `storage` nem outros esquemas administrados pelo Supabase.
+Registre caminho privado, tamanho e hash SHA-256 sem publicar o conteúdo.
+Sem arquivo gerado e verificado, o requisito de backup permanece pendente.
+
+Para comparar o esquema instalado antes do backup, execute a consulta somente
+de leitura [`0001_catalog_audit.sql`](../verification/0001_catalog_audit.sql)
+e confira todas as colunas, restrições e índices contra a migration `0001`.
+
 Após aplicar a `0001` e criar o bucket, **antes da `0002`**, execute `database/verification/0001_foundation.sql` no SQL Editor do mesmo projeto. Ele falha se faltar tabela, se RLS estiver desligado, se uma política aparecer ou se o bucket não for privado. Nenhum dado de cliente é necessário.
 
 Depois da `0002`, crie **duas identidades descartáveis** pelo Supabase Auth de homologação com os e-mails reservados `gogdely-rls-a@example.invalid` e `gogdely-rls-b@example.invalid`, sem envio de convite. Execute `database/verification/0002_membership_read_policies.sql` no SQL Editor como operador administrativo do projeto. O script cria empresas e filiais fictícias em uma transação, testa leitura como `manager`, `staff`, `owner` e `anon`, escrita negada e revogação imediata, e termina com `ROLLBACK`. Se falhar, não trate a migration como homologada; registre a mensagem e confirme que a transação foi revertida. Remova as duas identidades descartáveis pelo Auth após a verificação. Não execute este teste em produção ou em projeto compartilhado.
