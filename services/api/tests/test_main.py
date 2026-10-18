@@ -20,3 +20,32 @@ def test_info(monkeypatch) -> None:
 
 def test_no_business_endpoints_yet() -> None:
     assert client.get("/api/v1/orders").status_code == 404
+
+
+def test_ready_requires_database_and_does_not_expose_secret(monkeypatch) -> None:
+    monkeypatch.delenv("GOGDELY_DATABASE_URL", raising=False)
+    response = client.get("/ready")
+    assert response.status_code == 503
+    assert "database" in response.json()["detail"]
+
+    monkeypatch.setenv("GOGDELY_DATABASE_URL", "postgresql://user:secret@db.test/postgres")
+    monkeypatch.setattr("gogdely_api.main.foundation_ready", lambda _: False)
+    response = client.get("/ready")
+    assert response.status_code == 503
+    assert "secret" not in response.text
+
+
+def test_ready_with_foundation(monkeypatch) -> None:
+    monkeypatch.setenv("GOGDELY_DATABASE_URL", "postgresql://user:secret@db.test/postgres")
+    monkeypatch.setattr("gogdely_api.main.foundation_ready", lambda _: True)
+    response = client.get("/ready")
+    assert response.status_code == 200
+    assert response.json()["status"] == "ready"
+
+
+def test_version_exposes_only_commit(monkeypatch) -> None:
+    monkeypatch.setenv("RENDER_GIT_COMMIT", "abc123")
+    response = client.get("/version.json")
+    assert response.status_code == 200
+    assert response.json() == {"commit": "abc123"}
+    assert response.headers["cache-control"] == "no-store"
