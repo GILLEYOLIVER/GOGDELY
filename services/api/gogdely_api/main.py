@@ -1,5 +1,6 @@
 """GOGDELY API bootstrap, without business or payment operations."""
 import os
+from urllib.parse import quote
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import JSONResponse
@@ -43,6 +44,17 @@ def version() -> JSONResponse:
 def ready() -> dict[str, str]:
     """Readiness is unavailable until the reviewed schema is installed."""
     database_url = os.environ.get("GOGDELY_DATABASE_URL", "")
+    if not database_url:
+        host = os.environ.get("GOGDELY_DATABASE_HOST", "")
+        user = os.environ.get("GOGDELY_DATABASE_USER", "")
+        password = os.environ.get("GOGDELY_DATABASE_PASSWORD", "")
+        port = os.environ.get("GOGDELY_DATABASE_PORT", "5432")
+        database = os.environ.get("GOGDELY_DATABASE_NAME", "postgres")
+        if host and user and password:
+            database_url = (
+                f"postgresql://{quote(user, safe='')}:{quote(password, safe='')}"
+                f"@{host}:{port}/{quote(database, safe='')}"
+            )
     if not database_url or not foundation_ready(database_url):
         raise HTTPException(status_code=503, detail="managed database is not ready")
     return {"status": "ready", "service": "gogdely-api"}

@@ -24,7 +24,7 @@ Abrir `http://127.0.0.1:8000/docs` ou `http://127.0.0.1:8000/health`.
 ## Verificações de publicação
 
 - `/health` verifica somente o processo.
-- `/ready` exige `GOGDELY_DATABASE_URL`, TLS com validação de certificado e oito tabelas `gogdely` com RLS forçado. Responde 503 sem banco ou esquema; não divulga a URL ou exceções de conexão.
+- `/ready` aceita `GOGDELY_DATABASE_URL` ou as variáveis separadas `GOGDELY_DATABASE_HOST`, `GOGDELY_DATABASE_USER`, `GOGDELY_DATABASE_PASSWORD`, `GOGDELY_DATABASE_PORT` (padrão 5432) e `GOGDELY_DATABASE_NAME` (padrão postgres). A senha separada é codificada na URL internamente, inclusive quando contém caracteres especiais. Exige TLS com validação de certificado e oito tabelas `gogdely` com RLS forçado. Responde 503 sem banco ou esquema; não divulga a URL ou exceções de conexão.
 - `/version.json` mostra somente o SHA fornecido por `RENDER_GIT_COMMIT`, com `Cache-Control: no-store`.
 
 ## Limites
