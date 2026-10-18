@@ -10,7 +10,7 @@
 
 ## Banco e acesso
 
-Aplicar as migrações versionadas de `database/migrations` apenas no projeto de testes. O esquema privado `gogdely` usa chaves compostas com `tenant_id` para relações entre filiais, itens e pedidos. RLS é forçado e não há políticas nem grants para clientes. Isso mantém a estrutura bloqueada até a API validar JWT, papéis e vínculo à empresa e filial. Não colocar senha Postgres, service-role key, JWT secret ou dados reais no GitHub, no cliente Flutter ou em logs.
+Aplicar a migração versionada de `database/migrations` apenas no projeto de testes. Criar o bucket privado pelo painel ou API oficial de Storage conforme `database/storage/gogdely-menu-testes.json`. O esquema privado `gogdely` usa chaves compostas com `tenant_id` para relações entre filiais, itens e pedidos. RLS é forçado e não há políticas nem grants para clientes. Isso mantém a estrutura bloqueada até a API validar JWT, papéis e vínculo à empresa e filial. Não colocar senha Postgres, service-role key, JWT secret ou dados reais no GitHub, no cliente Flutter ou em logs.
 
 O Render ainda não tem conexão com o Supabase. A integração seguinte deve usar segredo próprio do ambiente, checar `/ready` contra o banco, autenticação e testes de isolamento entre duas empresas antes de aceitar comandos de pedido. A chave administrativa não deve ser exposta ao PWA.
 
