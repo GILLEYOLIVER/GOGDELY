@@ -36,6 +36,11 @@ def foundation_ready(database_url: str) -> bool:
         tls.load_verify_locations(
             cafile=str(files("gogdely_api").joinpath("certs", "prod-ca-2021.crt"))
         )
+        if parsed.hostname.endswith(".pooler.supabase.com"):
+            # Supabase's shared pooler currently serves an intermediate CA
+            # without Key Usage. Python 3.13+ rejects it under X509_STRICT
+            # (OpenSSL error 92). Keep CA and hostname verification enabled.
+            tls.verify_flags &= ~ssl.VERIFY_X509_STRICT
         connection = pg8000.native.Connection(
             user=unquote(parsed.username),
             password=unquote(parsed.password),

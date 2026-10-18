@@ -36,6 +36,29 @@ def test_queries_for_forced_rls_with_verified_tls(monkeypatch) -> None:
     assert captured["closed"]
 
 
+def test_supabase_pooler_keeps_verified_tls_without_strict_flag(monkeypatch) -> None:
+    captured = {}
+
+    class Connection:
+        def __init__(self, **kwargs):
+            captured.update(kwargs)
+
+        def run(self, sql):
+            return [[8]]
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(db_health.pg8000.native, "Connection", Connection)
+    assert db_health.foundation_ready(
+        "postgresql://user:password@aws-1-sa-east-1.pooler.supabase.com/postgres"
+    )
+    tls = captured["ssl_context"]
+    assert tls.verify_mode == ssl.CERT_REQUIRED
+    assert tls.check_hostname
+    assert not (tls.verify_flags & ssl.VERIFY_X509_STRICT)
+
+
 def test_readiness_logs_only_failure_class(monkeypatch, caplog) -> None:
     class Connection:
         def __init__(self, **kwargs):
