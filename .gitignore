@@ -6,7 +6,11 @@
 build/
 __pycache__/
 .venv/
+*.egg-info/
 *.db
 *.sqlite
+.local/
 *.key
 *.pem
+*.iml
+**/.vscode/settings.json

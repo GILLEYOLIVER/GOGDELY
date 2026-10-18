@@ -7,6 +7,10 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  gogdely_design_system:
+    path: ../../packages/design_system
+  gogdely_local_demo_api:
+    path: ../../packages/local_demo_api
   flutter_map: ^8.2.2
   latlong2: ^0.9.1
   mobile_scanner: ^7.1.4
@@ -16,3 +20,5 @@ dev_dependencies:
   flutter_lints: ^5.0.0
 flutter:
   uses-material-design: true
+  assets:
+    - assets/images/
