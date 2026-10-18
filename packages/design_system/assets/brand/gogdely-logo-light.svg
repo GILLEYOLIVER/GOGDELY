@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="320" viewBox="0 0 1200 320" role="img" aria-labelledby="title desc">
+  <title id="title">GOGDELY</title>
+  <desc id="desc">Símbolo de proximidade azul e nome gogdely em grafite e azul sobre fundo claro.</desc>
+  <rect width="1200" height="320" rx="34" fill="#F2F5FF"/>
+  <g transform="translate(62 65)">
+    <rect x="0" y="0" width="174" height="174" rx="47" fill="#2563EB"/>
+    <path d="M51 105c0-34 22-58 55-58 20 0 35 8 44 22l-22 14c-5-8-12-12-22-12-18 0-30 14-30 34s12 34 30 34c10 0 19-4 24-10v-12h-26V95h51v46c-13 15-30 22-50 22-32 0-54-24-54-58Z" fill="#FFFFFF"/>
+    <circle cx="140" cy="35" r="13" fill="#60A5FA"/>
+  </g>
+  <g font-family="Segoe UI, Arial, sans-serif" font-size="146" font-weight="800" letter-spacing="-10">
+    <text x="272" y="199" fill="#151B2B">gog</text>
+    <text x="519" y="199" fill="#2563EB">dely.</text>
+  </g>
+  <text x="280" y="272" fill="#64748B" font-family="Segoe UI, Arial, sans-serif" font-size="30" letter-spacing=".8">Tudo mais perto de você.</text>
+</svg>

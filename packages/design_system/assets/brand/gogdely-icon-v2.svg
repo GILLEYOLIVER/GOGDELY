@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Ícone GOGDELY — proposta 2</title>
+  <desc id="desc">Rota azul entre dois pontos em fundo grafite arredondado.</desc>
+  <rect width="512" height="512" rx="132" fill="#151B2B"/>
+  <path d="M133 358 C152 235 333 358 359 158" fill="none" stroke="#60A5FA" stroke-width="39" stroke-linecap="round"/>
+  <circle cx="133" cy="358" r="54" fill="#2563EB" stroke="#FFFFFF" stroke-width="19"/>
+  <path d="M359 85c-63 0-114 51-114 114 0 87 114 192 114 192s114-105 114-192c0-63-51-114-114-114Z" fill="#2563EB"/>
+  <circle cx="359" cy="199" r="45" fill="#FFFFFF"/>
+</svg>

@@ -27,7 +27,8 @@ class _QrDemoScreenState extends State<QrDemoScreen> {
           children: [
             const Padding(
               padding: EdgeInsets.all(12),
-              child: Text('A câmera requer permissão. Códigos são mostrados localmente; nenhum pedido será criado.'),
+              child: Text(
+                  'A câmera requer permissão. Códigos são mostrados localmente; nenhum pedido será criado.'),
             ),
             Expanded(
               child: MobileScanner(
@@ -48,7 +49,9 @@ class _QrDemoScreenState extends State<QrDemoScreen> {
               padding: const EdgeInsets.all(16),
               child: Column(
                 children: [
-                  SelectableText(_result == null ? 'Aguardando leitura' : 'Lido (não validado): $_result'),
+                  SelectableText(_result == null
+                      ? 'Aguardando leitura'
+                      : 'Lido (não validado): $_result'),
                   const SizedBox(height: 8),
                   FilledButton(
                     onPressed: () {

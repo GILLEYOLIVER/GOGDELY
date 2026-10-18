@@ -7,7 +7,7 @@ Este arquivo é memória **documental versionada**, não armazenamento de senhas
 - Repositório privado: GILLEYOLIVER/GOGDELY.
 - Documento Mestre v1.0 aprovado como base de planejamento, com 141 registros GOG-001 a GOG-141.
 - Piloto previsto com até dez empresas; expansão nacional posterior.
-- Estado: estrutura documental inicial; **nenhuma aplicação implementada/homologada e nenhum deploy de produção**.
+- Estado: protótipo local do Cliente com laboratório Windows, busca, catálogo e carrinho fictícios; **nenhuma aplicação homologada e nenhum deploy de produção**.
 
 ## Produtos
 - Cliente: Android/iOS; descoberta, catálogo, pedidos, pagamento e rastreamento.
@@ -31,7 +31,7 @@ Este arquivo é memória **documental versionada**, não armazenamento de senhas
 Provedor de pagamento; emissão fiscal nacional; banco offline e conflitos; licenças e compatibilidade de componentes; metas de cobertura/carga/RPO/RTO; proteção de branches; identidade visual; privacidade de GPS; orçamento Supabase/Render.
 
 ## Estado do GitHub
-README em main; estrutura inicial em develop; PR #1 em rascunho; seis componentes open source catalogados, **não incorporados**. Importação integral dos 141 registros para o GitHub ainda pendente de verificação.
+Registro histórico inicial: README em main, estrutura inicial em develop, PR #1 em rascunho e seis candidatos open source catalogados. No checkout local de 11/10/2026, `flutter_map` e `mobile_scanner` já estão declarados no Cliente; estado atual de PRs e importação dos 141 registros exige verificação no GitHub.
 
 ## Atualização
 Distinguir aprovado, proposto, pendente, implementado e homologado. Registrar data, requisito, evidências e próximo passo; nunca inferir aprovações. Revisado em 2026-10-11.

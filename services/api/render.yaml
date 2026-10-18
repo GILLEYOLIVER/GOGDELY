@@ -1,0 +1,21 @@
+# Modelo de serviço para hospedagem futura no Render (ou equivalente).
+# GOG-073: preparado, NÃO implantado. Nenhuma conta, segredo ou custo existe.
+# Ao homologar deploy, preencher região/conta e revisar com o proprietário.
+services:
+  - type: web
+    name: gogdely-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    region: sa-east-1
+    healthCheckPath: /health
+    autoDeploy: false
+    envVars:
+      - key: GOGDELY_ENV
+        value: homolog
+      # Chave de banco gerenciado (Supabase PostgreSQL ou outro) entra como
+      # secret no painel; nunca no repositório.
+      - key: GOGDELY_DATABASE_URL
+        sync: false
+      - key: GOGDELY_CORS_ORIGINS
+        sync: false

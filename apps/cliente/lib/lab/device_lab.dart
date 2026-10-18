@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
 enum LabDevice { iphone, android, tablet }
+
 enum LabNetwork { online, offline }
+
 enum LabOrder { created, accepted, preparing, delivering, completed }
 
 class DeviceLab extends StatefulWidget {
@@ -30,7 +32,7 @@ class _DeviceLabState extends State<DeviceLab> {
     final base = portraitSize;
     final size = landscape ? Size(base.height, base.width) : base;
     return Scaffold(
-      backgroundColor: const Color(0xffe8eef0),
+      backgroundColor: const Color(0xff101522),
       body: SafeArea(
         child: LayoutBuilder(builder: (context, constraints) {
           final availableWidth = constraints.maxWidth;
@@ -52,22 +54,27 @@ class _DeviceLabState extends State<DeviceLab> {
   }
 
   Widget _controls() => Container(
-        color: Colors.white,
+        color: const Color(0xff151B2B),
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
             const Text('GOGDELY • Laboratório',
                 style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-            const Text('Somente dados fictícios', style: TextStyle(fontSize: 12)),
+            const Text('Somente dados fictícios',
+                style: TextStyle(fontSize: 12)),
             const SizedBox(height: 12),
             DropdownButtonFormField<LabDevice>(
               key: ValueKey(device),
               initialValue: device,
-              decoration: const InputDecoration(labelText: 'Dispositivo', border: OutlineInputBorder()),
+              decoration: const InputDecoration(
+                  labelText: 'Dispositivo', border: OutlineInputBorder()),
               items: const [
-                DropdownMenuItem(value: LabDevice.iphone, child: Text('iPhone')),
-                DropdownMenuItem(value: LabDevice.android, child: Text('Android')),
-                DropdownMenuItem(value: LabDevice.tablet, child: Text('Tablet')),
+                DropdownMenuItem(
+                    value: LabDevice.iphone, child: Text('iPhone')),
+                DropdownMenuItem(
+                    value: LabDevice.android, child: Text('Android')),
+                DropdownMenuItem(
+                    value: LabDevice.tablet, child: Text('Tablet')),
               ],
               onChanged: (value) => setState(() => device = value ?? device),
             ),
@@ -80,9 +87,13 @@ class _DeviceLabState extends State<DeviceLab> {
               ),
               OutlinedButton.icon(
                 onPressed: () => setState(() => network =
-                    network == LabNetwork.online ? LabNetwork.offline : LabNetwork.online),
-                icon: Icon(network == LabNetwork.online ? Icons.wifi : Icons.wifi_off),
-                label: Text(network == LabNetwork.online ? 'Online' : 'Offline'),
+                    network == LabNetwork.online
+                        ? LabNetwork.offline
+                        : LabNetwork.online),
+                icon: Icon(
+                    network == LabNetwork.online ? Icons.wifi : Icons.wifi_off),
+                label:
+                    Text(network == LabNetwork.online ? 'Online' : 'Offline'),
               ),
               OutlinedButton.icon(
                 onPressed: () => setState(() => notification = !notification),
@@ -91,17 +102,23 @@ class _DeviceLabState extends State<DeviceLab> {
               ),
             ]),
             const Divider(),
-            const Text('Cenário de pedido', style: TextStyle(fontWeight: FontWeight.w600)),
+            const Text('Cenário de pedido',
+                style: TextStyle(fontWeight: FontWeight.w600)),
             DropdownButtonFormField<LabOrder>(
               key: ValueKey(order),
               initialValue: order,
               isExpanded: true,
               items: const [
-                DropdownMenuItem(value: LabOrder.created, child: Text('Recebido')),
-                DropdownMenuItem(value: LabOrder.accepted, child: Text('Confirmado')),
-                DropdownMenuItem(value: LabOrder.preparing, child: Text('Em preparo')),
-                DropdownMenuItem(value: LabOrder.delivering, child: Text('Em entrega')),
-                DropdownMenuItem(value: LabOrder.completed, child: Text('Concluído')),
+                DropdownMenuItem(
+                    value: LabOrder.created, child: Text('Recebido')),
+                DropdownMenuItem(
+                    value: LabOrder.accepted, child: Text('Confirmado')),
+                DropdownMenuItem(
+                    value: LabOrder.preparing, child: Text('Em preparo')),
+                DropdownMenuItem(
+                    value: LabOrder.delivering, child: Text('Em entrega')),
+                DropdownMenuItem(
+                    value: LabOrder.completed, child: Text('Concluído')),
               ],
               onChanged: (value) => setState(() => order = value ?? order),
             ),
@@ -113,10 +130,15 @@ class _DeviceLabState extends State<DeviceLab> {
       );
 
   Widget _preview(Size deviceSize, Size viewport, bool wide) {
-    final maxWidth = (viewport.width - (wide ? 340 : 30)).clamp(100.0, double.infinity);
-    final maxHeight = (viewport.height - (wide ? 40 : 220)).clamp(100.0, double.infinity);
-    final scale = [1.0, maxWidth / (deviceSize.width + 32), maxHeight / (deviceSize.height + 32)]
-        .reduce((a, b) => a < b ? a : b);
+    final maxWidth =
+        (viewport.width - (wide ? 340 : 30)).clamp(100.0, double.infinity);
+    final maxHeight =
+        (viewport.height - (wide ? 40 : 220)).clamp(100.0, double.infinity);
+    final scale = [
+      1.0,
+      maxWidth / (deviceSize.width + 32),
+      maxHeight / (deviceSize.height + 32)
+    ].reduce((a, b) => a < b ? a : b);
     final frameWidth = (deviceSize.width + 28) * scale;
     final frameHeight = (deviceSize.height + 28) * scale;
     return Center(
@@ -132,7 +154,9 @@ class _DeviceLabState extends State<DeviceLab> {
             decoration: BoxDecoration(
               color: const Color(0xff202428),
               borderRadius: BorderRadius.circular(40),
-              boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 20)],
+              boxShadow: const [
+                BoxShadow(color: Colors.black26, blurRadius: 20)
+              ],
             ),
             child: ClipRRect(
               borderRadius: BorderRadius.circular(27),
@@ -144,20 +168,25 @@ class _DeviceLabState extends State<DeviceLab> {
                   child: Stack(children: [
                     Positioned.fill(child: widget.child),
                     Positioned(
-                      left: 0, right: 0, top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
                       child: IgnorePointer(
                         child: Column(children: [
                           if (network == LabNetwork.offline)
                             Container(
-                              width: double.infinity, color: Colors.orange.shade100,
+                              width: double.infinity,
+                              color: Colors.orange.shade100,
                               padding: const EdgeInsets.all(8),
-                              child: const Text('SIMULAÇÃO: sem conexão', textAlign: TextAlign.center),
+                              child: const Text('SIMULAÇÃO: sem conexão',
+                                  textAlign: TextAlign.center),
                             ),
                           if (notification)
                             Container(
-                              color: Colors.teal.shade50,
+                              color: const Color(0xffDBEAFE),
                               padding: const EdgeInsets.all(12),
-                              child: const Text('Notificação fictícia: pedido atualizado'),
+                              child: const Text(
+                                  'Notificação fictícia: pedido atualizado'),
                             ),
                           Container(
                             color: Colors.black87,
@@ -165,7 +194,8 @@ class _DeviceLabState extends State<DeviceLab> {
                             padding: const EdgeInsets.all(6),
                             child: Text('Pedido de teste: ${order.name}',
                                 textAlign: TextAlign.center,
-                                style: const TextStyle(color: Colors.white, fontSize: 12)),
+                                style: const TextStyle(
+                                    color: Colors.white, fontSize: 12)),
                           ),
                         ]),
                       ),

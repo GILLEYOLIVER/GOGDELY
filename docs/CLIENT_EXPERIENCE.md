@@ -1,0 +1,25 @@
+# Experiência visual do Cliente — laboratório local
+
+**Estado em 17/10/2026:** prévia em revisão; nenhum aplicativo homologado.
+
+## Referências e decisões
+
+As 25 capturas e os cinco vídeos enviados pelo proprietário foram usados como referência de experiência. Os padrões observados incluem endereço visível na abertura, categorias e promoções horizontais, busca e filtros perto da lista de lojas, navegação inferior persistente, cardápio com seleção de produto, sacola com ação fixa e revisão antes do pedido. O resultado usa a identidade GOGDELY definida em [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md): azul elétrico e grafite. Marcas, ícones, imagens, textos e animações do aplicativo de referência não foram incorporados.
+
+## Implementação local
+
+- **GOG-087/088/092:** personagem original de entregador de moto em `apps/cliente/assets/images/courier-mascot.png`, símbolo de aplicativo em `courier-app-icon.png`, ícones PWA e Android derivados desse símbolo por `scripts/generate-client-icon.ps1`. A abertura dura cerca de cinco segundos: o personagem entra pela esquerda, para, dá duas buzinas curtas com indicação visual, sai completamente pela direita e só então abre a tela inicial. A marca e uma bola de carregamento aparecem durante a espera. A abertura pode ser pulada; a preferência do sistema por movimento reduzido a encerra imediatamente. No PWA, a buzina usa Web Audio; se o navegador impedir som automático, o botão “Toque para ouvir as buzinas” durante a parada ativa duas notas por gesto do usuário.
+- **GOG-090/091:** navegação inferior com transição de páginas, destaques horizontais com indicador, categorias por estabelecimento, busca rápida e filtros sobre o catálogo carregado.
+- **GOG-017/018:** antes de criar um pedido, a sacola mostra um resumo para revisão com loja, entrega, método demonstrativo e total. A confirmação continua a usar a API SQLite local e não liquida pagamentos.
+- **GOG-015/045/055 (parcial):** a tela de pagamento lista as formas aceitas pela loja e grava a escolha no pedido local. No acompanhamento, o botão de teste registra `simulated` na API SQLite com chave de idempotência e confirmação explícita. Não há gateway, captura de cartão, QR Pix, cobrança ou liquidação. O mapa interativo usa `flutter_map` e tiles OpenStreetMap com atribuição; mostra coordenadas fictícias das lojas, permite marcar um ponto e solicita localização do aparelho somente após toque em “Minha localização”. Rua e número continuam manuais; não há geocodificação, rota nem rastreamento do entregador.
+- **GOG-007/090/091 (17/10/2026):** no laboratório, os arquivos web são revalidados a cada abertura e o Cliente compara a versão ao reabrir ou voltar do segundo plano. Uma versão nova provoca recarga automática quando o mesmo endereço local está acessível; o cache antigo e mudanças de IP ainda podem exigir intervenção inicial.
+- **GOG-015/091 (parcial):** no PWA, endereço digitado e lojas favoritas são guardados no armazenamento local do navegador, sem nova dependência ou envio de GPS. A escolha do ponto no mapa permanece temporária. Sem conta, sincronização entre aparelhos ou geocodificação; testar a persistência no iPhone instalado.
+- **GOG-088 (17/10/2026):** a faixa superior do PWA usa grafite sólido (`#101522`) no tema, na tela inicial e no fundo de carregamento; no iPhone instalado, a barra de status usa o estilo escuro para evitar a transição clara vista acima do cabeçalho. A aparência final dessa área depende de conferência visual no iPhone.
+
+As artes do entregador e do ícone foram geradas originalmente para este projeto. Não adicionam pacote de tempo de execução nem dependem de serviço externo. A primeira arte foi solicitada como personagem isolado sobre transparência, com moto azul e grafite, sem texto. O ícone atualizado usa o mesmo personagem com uma estrada luminosa em forma de G sobre fundo grafite; as variantes PWA com área segura, favicon e Android são geradas localmente a partir dessa arte. O ícone para iOS nativo aguarda a criação do projeto iOS em macOS/Xcode.
+
+## Verificação e limites
+
+Em 17/10/2026, os cinco testes de `brand_motion_test.dart` passaram, incluindo parada, duas chamadas de buzina, ativação por toque e saída pela borda direita. O teste do mapa valida que a posição é solicitada apenas após o toque e permite selecionar o ponto. A suíte do Cliente passou no modo comum e em `GOGDELY_LOCAL_API=true`; `flutter analyze --no-pub` não apontou problemas; o build web de release concluiu. O som automático, a permissão de localização, os tiles, a aparência e a atualização do PWA ainda precisam de conferência no iPhone. O sistema pode manter o ícone antigo até remover e adicionar o PWA novamente à tela inicial.
+
+Executar em `apps/cliente`: `flutter analyze --no-pub`, `flutter test --no-pub`, `flutter test --no-pub --dart-define=GOGDELY_LOCAL_API=true` e `flutter build web --release --dart-define=GOGDELY_LOCAL_API=true --dart-define=GOGDELY_LOCAL_PWA=true`. A validação visual em celular e a homologação de acessibilidade permanecem pendentes. Frete, GPS, pagamento, autenticação e ofertas reais não são inferidos pelo visual da prévia.

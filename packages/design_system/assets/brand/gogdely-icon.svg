@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-labelledby="title desc">
+  <title id="title">Ícone GOGDELY</title>
+  <desc id="desc">Letra G branca em quadrado azul arredondado com um ponto azul claro.</desc>
+  <rect width="512" height="512" rx="138" fill="#2563EB"/>
+  <path d="M150 290c0-93 63-159 154-159 54 0 97 24 123 60l-63 42c-14-21-33-31-60-31-51 0-83 36-83 88s32 89 83 89c29 0 52-12 66-30v-28h-72v-60h139v111c-36 43-83 65-136 65-89 0-151-60-151-147Z" fill="#FFFFFF"/>
+  <circle cx="396" cy="104" r="36" fill="#60A5FA"/>
+</svg>

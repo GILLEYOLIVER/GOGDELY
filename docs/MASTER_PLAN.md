@@ -5,6 +5,8 @@
 ## Fonte das decisões
 O registro integral das **141 decisões e observações** encontra-se em [DECISIONS.md](DECISIONS.md), códigos GOG-001 a GOG-141. Cada alteração deverá referenciar o código correspondente.
 
+O andamento de cada decisão e dos marcos do piloto Burger House está no [checklist do Documento Mestre](MASTER_PLAN_CHECKLIST.md).
+
 ## Visão
 Marketplace nacional multissetorial e multiempresa. Delivery, retirada e consumo local; piloto de até dez estabelecimentos antes da expansão. Monetização por mensalidade e comissão configuráveis.
 

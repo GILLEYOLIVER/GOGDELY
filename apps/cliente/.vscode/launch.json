@@ -1,0 +1,14 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "GOGDELY Cliente • Laboratório (janela Windows)",
+      "type": "dart",
+      "request": "launch",
+      "cwd": "${workspaceFolder}",
+      "program": "lib/main.dart",
+      "deviceId": "windows",
+      "toolArgs": ["--dart-define=GOGDELY_LAB=true", "--dart-define=GOGDELY_LOCAL_API=true"]
+    }
+  ]
+}
