@@ -34,3 +34,18 @@ def test_queries_for_forced_rls_with_verified_tls(monkeypatch) -> None:
     assert captured["ssl_context"].verify_mode == ssl.CERT_REQUIRED
     assert captured["ssl_context"].check_hostname
     assert captured["closed"]
+
+
+def test_readiness_logs_only_failure_class(monkeypatch, caplog) -> None:
+    class Connection:
+        def __init__(self, **kwargs):
+            raise pg8000.InterfaceError("password=private-value")
+
+    import pg8000
+
+    monkeypatch.setattr(db_health.pg8000.native, "Connection", Connection)
+    assert not db_health.foundation_ready(
+        "postgresql://user:private-value@db.test/postgres"
+    )
+    assert "InterfaceError" in caplog.text
+    assert "private-value" not in caplog.text

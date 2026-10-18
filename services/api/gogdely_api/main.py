@@ -1,4 +1,5 @@
 """GOGDELY API bootstrap, without business or payment operations."""
+import logging
 import os
 from urllib.parse import quote
 
@@ -9,6 +10,7 @@ from pydantic import BaseModel
 from gogdely_api.db_health import foundation_ready
 
 app = FastAPI(title="GOGDELY API", version="0.1.0", docs_url="/docs")
+logger = logging.getLogger(__name__)
 
 
 class HealthResponse(BaseModel):
@@ -55,6 +57,9 @@ def ready() -> dict[str, str]:
                 f"postgresql://{quote(user, safe='')}:{quote(password, safe='')}"
                 f"@{host}:{port}/{quote(database, safe='')}"
             )
-    if not database_url or not foundation_ready(database_url):
+    if not database_url:
+        logger.warning("database readiness configuration is incomplete")
+        raise HTTPException(status_code=503, detail="managed database is not ready")
+    if not foundation_ready(database_url):
         raise HTTPException(status_code=503, detail="managed database is not ready")
     return {"status": "ready", "service": "gogdely-api"}

@@ -1,9 +1,12 @@
 """Read-only PostgreSQL readiness check for the managed environment."""
 
+import logging
 import ssl
 from urllib.parse import unquote, urlsplit
 
 import pg8000.native
+
+logger = logging.getLogger(__name__)
 
 
 def foundation_ready(database_url: str) -> bool:
@@ -44,8 +47,13 @@ def foundation_ready(database_url: str) -> bool:
                WHERE n.nspname = 'gogdely' AND c.relkind = 'r'
                  AND c.relrowsecurity AND c.relforcerowsecurity"""
         )
-        return bool(rows and rows[0][0] == 8)
-    except (OSError, ValueError, pg8000.Error):
+        ready = bool(rows and rows[0][0] == 8)
+        if not ready:
+            logger.warning("database foundation schema is incomplete")
+        return ready
+    except (OSError, ValueError, pg8000.Error) as exc:
+        # Never log exception text: drivers can include connection details.
+        logger.warning("database readiness connection failed: %s", type(exc).__name__)
         return False
     finally:
         if connection is not None:
