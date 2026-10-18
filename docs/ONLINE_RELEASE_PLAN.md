@@ -14,7 +14,7 @@
 ## Gates ainda abertos
 
 - Aprovação técnica independente dos PRs #32 e #34; aprovação do proprietário para a release concreta.
-- Migração revisada e aplicada; URL/credencial PostgreSQL armazenada somente como segredo do serviço ou job, nunca no Git ou PWA.
+- Migração aplicada e verificada no projeto isolado `GOGDELY Testes`; ainda faltam revisão independente, registro no histórico de migrações do Supabase CLI e URL/credencial PostgreSQL como segredo do serviço ou job, nunca no Git ou PWA.
 - API real de catálogo, pedidos, transições e entrega; Auth/RLS e testes de isolamento; pagamentos por provedor, fiscal, privacidade de GPS, backups e restauração.
 - Suporte Web da Gestão, builds reproduzíveis dos três PWAs, URLs públicas, validação em dispositivo e política de atualização; revisão de licenças das imagens e dependências.
 - Serviço de produção separado do `gogdely-api-testes`; plano de custo e disponibilidade aceitos pelo proprietário.
