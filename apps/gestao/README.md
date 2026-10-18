@@ -1,6 +1,8 @@
 # GOGDELY Gestão
 Protótipo Flutter local para Windows com dashboard, pedidos, KDS, PDV, estoque, relatórios, financeiro e configurações. Com `GOGDELY_LOCAL_API=true`, dashboard, pedidos e KDS consultam automaticamente a API local a cada 3 segundos. O painel reúne pedidos fictícios das dez lojas e oferece um filtro por estabelecimento; os botões salvam preparo, pronto e encaminhamento ao Entregador. O Cardápio permite escolher a loja, editar produtos, preços, fotos, disponibilidade e adicionais. Ficha técnica, movimentações de estoque, mesas QR e PDV continuam no piloto Burger House. Relatórios e financeiro permanecem ilustrativos; a seleção local de loja não equivale a autorização multiempresa.
 
+O projeto agora compila também para Web (`flutter build web --release`) como **prévia PWA da Gestão**. O build padrão não ativa a API local; sem autenticação e isolamento por empresa, essa prévia não deve ser publicada como painel operacional. A publicação online depende da API gerenciada, perfis reais, autorização por filial e revisão das mídias/licenças.
+
 No **KDS**, o menu de ações de um pedido novo ou em preparo permite **Marcar prioritário** e **Voltar à ordem normal**, sempre com motivo. Os prioritários aparecem primeiro; em cada grupo vale a ordem de chegada. A prioridade e seu histórico ficam apenas no SQLite de teste, sem permissões por operador ou setor.
 
 Em **Pedidos**, o menu de ações permite **Registrar pagamento simulado** para pedidos não cancelados com forma de pagamento escolhida, sempre com motivo. O cartão passa a mostrar `pagamento simulado no laboratório (sem cobrança real)` e a declaração fica no histórico do pedido. É apenas registro de teste: nada é cobrado, transferido ou confirmado financeiramente, e nenhum provedor é acionado.
