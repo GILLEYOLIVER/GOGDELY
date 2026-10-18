@@ -16,7 +16,9 @@ from gogdely_api.config import config
 from gogdely_api.db_health import configured_database_url, foundation_ready
 from gogdely_api.local_orders import router as local_router
 from gogdely_api.master_local import router as master_router
-from gogdely_api.memberships import StoreMembership, list_memberships
+from gogdely_api.memberships import (
+    AuthorizedBranch, StoreMembership, authorized_branch, list_memberships,
+)
 from gogdely_api.web_seo import https_and_security_middleware, router as seo_router
 
 app = FastAPI(title="GOGDELY API", version="0.1.0", docs_url="/docs")
@@ -103,6 +105,20 @@ def current_memberships(
 ) -> list[StoreMembership]:
     """Return only the verified user's stores and permitted branches."""
     return list_memberships(user.user_id)
+
+
+@app.get(
+    "/api/v1/management/tenants/{tenant_id}/branches/{branch_id}/context",
+    response_model=AuthorizedBranch,
+    tags=["management"],
+)
+def management_branch_context(
+    tenant_id: UUID,
+    branch_id: UUID,
+    user: AuthenticatedUser = Depends(authenticated_user),
+) -> AuthorizedBranch:
+    """Resolve one branch only through the verified user's live RLS scope."""
+    return authorized_branch(user.user_id, tenant_id, branch_id)
 
 
 @app.get("/version.json", tags=["system"])

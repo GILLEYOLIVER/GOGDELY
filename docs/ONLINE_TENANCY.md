@@ -16,6 +16,12 @@ endpoint não foi publicado no Render.
 5. Qualquer falha de configuração, SQL, conexão ou política retorna HTTP 503
    sem expor credenciais. Token ausente ou inválido retorna HTTP 401.
 
+`GET /api/v1/management/tenants/{tenant_id}/branches/{branch_id}/context`
+usa a mesma identidade verificada e a mesma transação RLS para resolver uma
+filial da Gestão. O ID enviado pelo cliente é apenas um alvo de busca: a API
+liga empresa, filial e membership do sujeito verificado. Filial inexistente,
+de outra empresa, não vinculada ou revogada retorna o mesmo HTTP 404.
+
 As políticas concedem **somente SELECT** às quatro tabelas de vínculo; não
 concedem escrita nem acesso aos pedidos, cardápios, eventos ou pagamentos.
 A API continua sendo a autoridade para operações comerciais. Clientes
@@ -76,8 +82,14 @@ não substitui a execução no Supabase nem a revisão independente.
   e checar os logs sem registrar tokens ou dados pessoais.
 
 Os testes Python usam Auth e PostgreSQL simulados; validam a exigência do
-token, o sujeito confiável, o papel RLS e a falha fechada. Não demonstram que
-a política já funciona no Supabase real.
+token, o sujeito confiável, o papel RLS, a falha fechada e o contrato do
+contexto de filial, inclusive ID de outra empresa e revogação na requisição
+seguinte. Não demonstram que a política já funciona no Supabase real. O
+roteiro SQL local com PostgreSQL descartável testa as políticas separadamente.
+Além disso, a API foi exercitada contra esse PostgreSQL local com `manager`,
+`staff`, `owner`, filial de outra empresa e revogação; as respostas foram
+200/404 conforme o escopo esperado. O servidor local foi desligado. Ainda
+falta repetir a integração no Supabase de homologação com Auth real.
 
 ## Reversão
 
