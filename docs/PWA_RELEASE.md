@@ -12,3 +12,5 @@ O Cliente, a Gestão e o Entregador têm build Web. Em cada origem hospedada, `r
 ## Limites atuais
 
 Os três builds locais são prévias demonstrativas. Não há hospedagem pública, pipeline de publicação, autenticação multiempresa, API gerenciada ou teste no iPhone instalado para esta release. `version.json` no bundle local é um marcador de build, não prova de deploy live. Apps nativos instalados dependem de distribuição própria; atualizar dados remotos não altera o binário do aplicativo.
+
+O workflow `pwa-build.yml` compila e verifica os três bundles em PRs e pushes para `develop`/`main` com o SDK Flutter fixado em `4cf24164269a5ebf0c16a028a00727d0e77bbb05` (3.47.0). Ele não publica artefatos: a publicação exige a API pronta no mesmo SHA, revisão independente, liberação do proprietário e verificação das três URLs. O checkout do código fonte do Flutter é do repositório oficial; não há nova action de terceiros para instalar o SDK.
