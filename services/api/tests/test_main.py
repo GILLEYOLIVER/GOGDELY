@@ -35,6 +35,18 @@ def test_ready_requires_database_and_does_not_expose_secret(monkeypatch) -> None
     assert "secret" not in response.text
 
 
+def test_ready_logs_missing_variable_names_without_values(monkeypatch, caplog) -> None:
+    monkeypatch.delenv("GOGDELY_DATABASE_URL", raising=False)
+    monkeypatch.setenv("GOGDELY_DATABASE_HOST", "private-host")
+    monkeypatch.setenv("GOGDELY_DATABASE_USER", "private-user")
+    monkeypatch.delenv("GOGDELY_DATABASE_PASSWORD", raising=False)
+    response = client.get("/ready")
+    assert response.status_code == 503
+    assert "GOGDELY_DATABASE_PASSWORD" in caplog.text
+    assert "private-host" not in caplog.text
+    assert "private-user" not in caplog.text
+
+
 def test_ready_with_foundation(monkeypatch) -> None:
     monkeypatch.setenv("GOGDELY_DATABASE_URL", "postgresql://user:secret@db.test/postgres")
     monkeypatch.setattr("gogdely_api.main.foundation_ready", lambda _: True)

@@ -58,7 +58,16 @@ def ready() -> dict[str, str]:
                 f"@{host}:{port}/{quote(database, safe='')}"
             )
     if not database_url:
-        logger.warning("database readiness configuration is incomplete")
+        missing = [
+            key
+            for key in (
+                "GOGDELY_DATABASE_HOST",
+                "GOGDELY_DATABASE_USER",
+                "GOGDELY_DATABASE_PASSWORD",
+            )
+            if not os.environ.get(key)
+        ]
+        logger.warning("database readiness configuration is incomplete: %s", ", ".join(missing))
         raise HTTPException(status_code=503, detail="managed database is not ready")
     if not foundation_ready(database_url):
         raise HTTPException(status_code=503, detail="managed database is not ready")
