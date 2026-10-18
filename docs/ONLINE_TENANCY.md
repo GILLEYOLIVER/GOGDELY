@@ -46,8 +46,19 @@ executado. Antes de aplicar, ainda faltam comparação completa do esquema
 instalado, backup recuperável e revisão técnica independente da migration.
 Nenhum serviço pago ou upgrade foi contratado.
 O [procedimento de backup manual](../database/migrations/README.md#backup-manual-da-homologação)
-está preparado, mas não foi executado; as ferramentas PostgreSQL e a senha
-do banco devem ser fornecidas localmente no momento da execução.
+está preparado, mas não foi concluído. As ferramentas PostgreSQL 18.6 e o
+certificado CA foram instalados fora do repositório; a conexão com o pooler
+respondeu ao `pg_isready`. Isso não autentica nem confirma um backup. O
+`pg_dump` requer a senha do banco digitada em um terminal interativo. Uma
+tentativa sem essa senha foi encerrada, sem gerar arquivo de backup.
+
+Em um PostgreSQL 18.6 descartável no Windows, as migrations `0001` e `0002`
+foram aplicadas em sequência com roles `anon`/`authenticated`, uma tabela
+`auth.users` e uma função `auth.uid()` simuladas. O roteiro
+`0002_membership_read_policies.sql` passou para `manager`, `staff`, `owner`,
+revogação e `anon`; após seu `ROLLBACK`, as quatro tabelas de vínculos e
+empresas voltaram a zero linhas. O servidor local foi desligado. Esse teste
+não substitui a execução no Supabase nem a revisão independente.
 
 - Confirmar que `0001_cloud_foundation.sql` é exatamente o esquema instalado
   na homologação e realizar backup da base.
