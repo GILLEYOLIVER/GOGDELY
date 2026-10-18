@@ -3,7 +3,6 @@
 import logging
 import os
 from pathlib import Path
-from urllib.parse import quote
 from uuid import UUID
 
 from fastapi import Depends, FastAPI, HTTPException
@@ -14,9 +13,10 @@ from pydantic import BaseModel
 
 from gogdely_api.auth import AuthenticatedUser, authenticated_user
 from gogdely_api.config import config
-from gogdely_api.db_health import foundation_ready
+from gogdely_api.db_health import configured_database_url, foundation_ready
 from gogdely_api.local_orders import router as local_router
 from gogdely_api.master_local import router as master_router
+from gogdely_api.memberships import StoreMembership, list_memberships
 from gogdely_api.web_seo import https_and_security_middleware, router as seo_router
 
 app = FastAPI(title="GOGDELY API", version="0.1.0", docs_url="/docs")
@@ -86,6 +86,14 @@ def current_identity(user: AuthenticatedUser = Depends(authenticated_user)) -> I
     return IdentityResponse(user_id=user.user_id)
 
 
+@app.get("/api/v1/auth/memberships", response_model=list[StoreMembership], tags=["identity"])
+def current_memberships(
+    user: AuthenticatedUser = Depends(authenticated_user),
+) -> list[StoreMembership]:
+    """Return only the verified user's stores and permitted branches."""
+    return list_memberships(user.user_id)
+
+
 @app.get("/version.json", tags=["system"])
 def version() -> JSONResponse:
     return JSONResponse(
@@ -97,18 +105,7 @@ def version() -> JSONResponse:
 @app.get("/ready", tags=["system"])
 def ready() -> dict[str, str]:
     """Readiness is unavailable until the reviewed schema is installed."""
-    database_url = os.environ.get("GOGDELY_DATABASE_URL", "")
-    if not database_url:
-        host = os.environ.get("GOGDELY_DATABASE_HOST", "")
-        user = os.environ.get("GOGDELY_DATABASE_USER", "")
-        password = os.environ.get("GOGDELY_DATABASE_PASSWORD", "")
-        port = os.environ.get("GOGDELY_DATABASE_PORT", "5432")
-        database = os.environ.get("GOGDELY_DATABASE_NAME", "postgres")
-        if host and user and password:
-            database_url = (
-                f"postgresql://{quote(user, safe='')}:{quote(password, safe='')}"
-                f"@{host}:{port}/{quote(database, safe='')}"
-            )
+    database_url = configured_database_url()
     if not database_url:
         missing = [
             key for key in (

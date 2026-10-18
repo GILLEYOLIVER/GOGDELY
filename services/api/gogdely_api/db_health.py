@@ -1,14 +1,63 @@
 """Read-only PostgreSQL readiness check for the managed environment."""
 
 import logging
+import os
 import re
 import ssl
 from importlib.resources import files
-from urllib.parse import unquote, urlsplit
+from urllib.parse import quote, unquote, urlsplit
 
 import pg8000.native
 
 logger = logging.getLogger(__name__)
+
+
+def configured_database_url() -> str:
+    """Build the private database URL from server environment variables."""
+    database_url = os.environ.get("GOGDELY_DATABASE_URL", "")
+    if database_url:
+        return database_url
+    host = os.environ.get("GOGDELY_DATABASE_HOST", "")
+    user = os.environ.get("GOGDELY_DATABASE_USER", "")
+    password = os.environ.get("GOGDELY_DATABASE_PASSWORD", "")
+    port = os.environ.get("GOGDELY_DATABASE_PORT", "5432")
+    database = os.environ.get("GOGDELY_DATABASE_NAME", "postgres")
+    if not (host and user and password):
+        return ""
+    return (
+        f"postgresql://{quote(user, safe='')}:{quote(password, safe='')}"
+        f"@{host}:{port}/{quote(database, safe='')}"
+    )
+
+
+def connect_database(database_url: str, application_name: str = "gogdely-readiness"):
+    """Open a TLS-verified PostgreSQL connection without logging credentials."""
+    parsed = urlsplit(database_url)
+    if parsed.scheme not in ("postgres", "postgresql") or not parsed.hostname:
+        raise ValueError("Invalid database address")
+    if parsed.username is None or parsed.password is None:
+        raise ValueError("Missing database credentials")
+    database = unquote(parsed.path.lstrip("/"))
+    if not database:
+        raise ValueError("Missing database name")
+    port = parsed.port or 5432
+    tls = ssl.create_default_context()
+    tls.load_verify_locations(
+        cafile=str(files("gogdely_api").joinpath("certs", "prod-ca-2021.crt"))
+    )
+    if parsed.hostname.endswith(".pooler.supabase.com"):
+        # Preserve CA and hostname checks while accepting the pooler chain.
+        tls.verify_flags &= ~ssl.VERIFY_X509_STRICT
+    return pg8000.native.Connection(
+        user=unquote(parsed.username),
+        password=unquote(parsed.password),
+        host=parsed.hostname,
+        port=port,
+        database=database,
+        ssl_context=tls,
+        timeout=3,
+        application_name=application_name,
+    )
 
 
 def foundation_ready(database_url: str) -> bool:
@@ -17,41 +66,9 @@ def foundation_ready(database_url: str) -> bool:
     This does not claim that orders, Auth, Storage or payments are operational.
     The connection string and database exception are never returned to clients.
     """
-    parsed = urlsplit(database_url)
-    if parsed.scheme not in ("postgres", "postgresql") or not parsed.hostname:
-        return False
-    if parsed.username is None or parsed.password is None:
-        return False
-    database = unquote(parsed.path.lstrip("/"))
-    if not database:
-        return False
-
-    try:
-        port = parsed.port or 5432
-    except ValueError:
-        return False
-
     connection = None
     try:
-        tls = ssl.create_default_context()
-        tls.load_verify_locations(
-            cafile=str(files("gogdely_api").joinpath("certs", "prod-ca-2021.crt"))
-        )
-        if parsed.hostname.endswith(".pooler.supabase.com"):
-            # Supabase's shared pooler currently serves an intermediate CA
-            # without Key Usage. Python 3.13+ rejects it under X509_STRICT
-            # (OpenSSL error 92). Keep CA and hostname verification enabled.
-            tls.verify_flags &= ~ssl.VERIFY_X509_STRICT
-        connection = pg8000.native.Connection(
-            user=unquote(parsed.username),
-            password=unquote(parsed.password),
-            host=parsed.hostname,
-            port=port,
-            database=database,
-            ssl_context=tls,
-            timeout=3,
-            application_name="gogdely-readiness",
-        )
+        connection = connect_database(database_url)
         rows = connection.run(
             """SELECT count(*) FROM pg_class c
                JOIN pg_namespace n ON n.oid = c.relnamespace

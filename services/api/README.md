@@ -2,8 +2,9 @@
 
 **Estado:** API executável mínima em ambiente local e de homologação. O Render
 expõe `/health`, `/ready` e `/version.json`; esta branch também verifica
-identidade no Supabase Auth. Ainda não há autorização de empresa, pedidos ou
-pagamentos em nuvem.
+identidade no Supabase Auth. Esta branch prepara a leitura de vínculos entre
+usuário, empresa e filial com RLS; a migration ainda não foi aplicada. Não há
+pedidos ou pagamentos em nuvem.
 
 O fluxo de pedidos abaixo permanece uma demonstração local persistida em
 SQLite. Não representa pedidos, pagamentos nem autorização de produção.
@@ -103,6 +104,15 @@ Esta etapa não autoriza acesso a loja, filial, pedido ou dados privados. A
 próxima etapa precisa consultar vínculos confiáveis no banco e testar RLS entre
 empresas antes de habilitar endpoints de negócio. Consulte
 [`docs/AUTH_IDENTITY.md`](../../docs/AUTH_IDENTITY.md).
+
+## Vínculos de empresa e filial — GOG-074
+
+`GET /api/v1/auth/memberships` usa a identidade verificada e uma consulta
+PostgreSQL transacional sob o papel `authenticated`. A migration de políticas
+de leitura está em [`0002_membership_read_policies.sql`](../../database/migrations/0002_membership_read_policies.sql).
+O fluxo, as verificações necessárias em homologação e a reversão estão em
+[`docs/ONLINE_TENANCY.md`](../../docs/ONLINE_TENANCY.md). Até a revisão
+independente e o teste real de isolamento, o endpoint não deve ser implantado.
 
 ## Testar
 ```powershell

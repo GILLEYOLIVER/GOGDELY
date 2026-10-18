@@ -45,7 +45,14 @@ class ApiConfig:
 
     @property
     def uses_managed_database(self) -> bool:
-        return bool(self.database_url)
+        return bool(
+            self.database_url
+            or (
+                os.environ.get("GOGDELY_DATABASE_HOST")
+                and os.environ.get("GOGDELY_DATABASE_USER")
+                and os.environ.get("GOGDELY_DATABASE_PASSWORD")
+            )
+        )
 
     @property
     def public_web(self) -> bool:

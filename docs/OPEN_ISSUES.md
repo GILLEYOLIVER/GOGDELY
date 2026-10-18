@@ -4,8 +4,10 @@
 2. Emissão fiscal nacional: documentos por categoria, jurisdição, contingência e responsabilidade.
 3. Banco offline e sincronização: compatibilidade, idempotência, ordenação e conflitos.
 4. Segurança multiempresa: a primeira verificação de identidade GOG-075 está
-   em branch isolada; faltam memberships, matriz de permissões, testes RLS e
-   isolamento por filial antes de conectar lojas reais.
+   em branch isolada; a consulta de memberships e as políticas RLS de leitura
+   estão preparadas em branch de integração, ainda sem aplicação ou teste real
+   entre empresas/filiais. Faltam matriz de permissões, escrita auditada e
+   isolamento comprovado antes de conectar lojas reais.
 5. GPS e mapa: o Cliente local agora solicita a posição sob toque e mostra tiles OpenStreetMap, mas as lojas têm coordenadas fictícias e o ponto escolhido fica só na sessão. Ainda faltam geocodificação, rota, localização do entregador, consentimento/retenção de produção, privacidade e provedor contratado para escala.
 6. Impressão: protocolos ESC/POS, USB/rede/Bluetooth, filas e compatibilidade desktop.
 7. Testes: metas de cobertura, carga, RPO/RTO e evidências de homologação.
