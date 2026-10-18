@@ -30,6 +30,9 @@ compradores e entregadores não usam esses vínculos.
   ausência de vínculo, papel `staff`, `manager` e `owner`.
 - Confirmar que a conexão do Render pode assumir `authenticated` dentro de
   uma transação e que `auth.uid()` lê o sujeito configurado.
+- Configurar `GOGDELY_SUPABASE_URL`, a chave publicável e
+  `GOGDELY_CORS_ORIGINS` no serviço de homologação; nenhuma chave
+  administrativa pode ser enviada ao PWA.
 - Aplicar apenas em homologação, verificar `/ready` e o endpoint autenticado,
   e checar os logs sem registrar tokens ou dados pessoais.
 
