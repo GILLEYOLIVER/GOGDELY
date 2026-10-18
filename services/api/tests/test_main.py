@@ -22,6 +22,14 @@ def test_no_business_endpoints_yet() -> None:
     assert client.get("/api/v1/orders").status_code == 404
 
 
+def test_hosted_environment_cannot_reach_local_demo_routes(monkeypatch) -> None:
+    monkeypatch.setenv("GOGDELY_ENV", "homolog")
+    monkeypatch.setenv("GOGDELY_LOCAL_DEMO", "1")
+    response = client.get("/api/v1/local/stores")
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Local demo disabled"}
+
+
 def test_ready_requires_database_and_does_not_expose_secret(monkeypatch) -> None:
     monkeypatch.delenv("GOGDELY_DATABASE_URL", raising=False)
     response = client.get("/ready")

@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 from uuid import UUID
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
@@ -32,6 +32,17 @@ app.include_router(seo_router)
 app.include_router(local_router)
 app.include_router(master_router)
 app.middleware("http")(https_and_security_middleware)
+
+
+@app.middleware("http")
+async def local_demo_boundary(request: Request, call_next):
+    """Deny every local demo route in a hosted environment, including new ones."""
+    if request.url.path.startswith("/api/v1/local/") and (
+        os.environ.get("GOGDELY_ENV") != "local"
+        or os.environ.get("GOGDELY_LOCAL_DEMO") != "1"
+    ):
+        return JSONResponse({"detail": "Local demo disabled"}, status_code=404)
+    return await call_next(request)
 
 
 class LocalPwaStaticFiles(StaticFiles):
