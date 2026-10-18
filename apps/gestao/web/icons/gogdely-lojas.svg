@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="GOGDELY Gestão: fachada de loja azul com painel de pedidos">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#1A2945"/>
+      <stop offset=".57" stop-color="#101522"/>
+      <stop offset="1" stop-color="#091121"/>
+    </linearGradient>
+    <radialGradient id="glow" cx=".54" cy=".35" r=".64">
+      <stop stop-color="#2563EB" stop-opacity=".45"/>
+      <stop offset="1" stop-color="#2563EB" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="awning" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#60D8FF"/>
+      <stop offset=".45" stop-color="#2563EB"/>
+      <stop offset="1" stop-color="#1D4ED8"/>
+    </linearGradient>
+    <linearGradient id="glass" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#E0F6FF"/>
+      <stop offset="1" stop-color="#82B7F5"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <rect width="512" height="512" rx="112" fill="url(#glow)"/>
+  <path d="M117 387h278" stroke="#60A5FA" stroke-opacity=".36" stroke-width="12" stroke-linecap="round"/>
+  <!-- Corpo da loja e vitrine. -->
+  <path d="M135 220h242v161H135z" fill="#253047" stroke="#83B9FF" stroke-width="9" stroke-linejoin="round"/>
+  <rect x="159" y="251" width="116" height="102" rx="10" fill="url(#glass)"/>
+  <path d="M171 338l85-73" stroke="#FFFFFF" stroke-opacity=".52" stroke-width="12" stroke-linecap="round"/>
+  <path d="M288 250h65v131h-65z" fill="#101522" stroke="#60A5FA" stroke-width="7"/>
+  <circle cx="338" cy="321" r="6" fill="#F8FAFC"/>
+  <!-- Toldo com três abas, desenhado para manter leitura em 48 px. -->
+  <path d="M119 203l27-66h220l27 66-10 27c-7 14-29 17-40 4-10 14-33 15-44 1-10 15-35 15-45 0-10 15-35 15-45 0-11 14-34 13-44-1-11 13-33 10-40-4z" fill="url(#awning)" stroke="#9CDDFF" stroke-width="8" stroke-linejoin="round"/>
+  <path d="M178 139l-11 74M244 139l-4 74M307 139l7 74M368 139l16 74" stroke="#C7EEFF" stroke-opacity=".92" stroke-width="11"/>
+  <path d="M128 214c10 21 32 25 46 9 12 17 33 18 46 0 12 18 34 18 47 0 13 18 35 17 47 0 13 18 35 17 47 0 14 16 35 12 45-9" fill="none" stroke="#F8FAFC" stroke-width="9" stroke-linecap="round"/>
+  <!-- Pedido pronto: cartão na vitrine. -->
+  <rect x="185" y="266" width="65" height="72" rx="8" fill="#F8FAFC"/>
+  <path d="M199 284h37M199 298h37M199 312h25" stroke="#2563EB" stroke-width="6" stroke-linecap="round"/>
+  <circle cx="239" cy="324" r="9" fill="#2563EB"/>
+  <path d="M235 324l3 3 5-6" fill="none" stroke="#FFFFFF" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

@@ -25,6 +25,9 @@ def prepare(root: Path = ROOT) -> Path:
         shutil.copytree(source, target, dirs_exist_ok=True)
         manifest_path = target / "manifest.json"
         manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+        for icon in manifest.get("icons", []):
+            if not (target / icon["src"]).is_file():
+                raise FileNotFoundError(f"PWA icon missing: {app}/{icon['src']}")
         name, short_name = HOSTED_NAMES[app]
         manifest.update({
             "id": f"/{app}/", "start_url": f"/{app}/", "scope": f"/{app}/",

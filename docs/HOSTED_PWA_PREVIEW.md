@@ -7,6 +7,9 @@ o app errado. O build fixa Flutter 3.47.0 no commit
 `4cf24164269a5ebf0c16a028a00727d0e77bbb05` e grava o SHA do código em
 `version.json`. Na abertura e ao retornar ao app, `release_update.js` consulta
 essa versão e recarrega a página quando uma nova publicação já está no ar.
+Os ícones da Entrega e Gestão usam arte própria azul/grafite, inclusive no
+atalho do iPhone (`apple-touch-icon`). Um atalho instalado antes da troca de
+ícone pode precisar ser removido e adicionado novamente no iOS.
 
 Essas prévias usam **somente dados fictícios em memória**. Os três aplicativos
 não compartilham pedidos entre si e não acessam a API do Render nem o banco

@@ -18,6 +18,13 @@ Verde não integra marca, botões, navegação, badges, progresso ou confirmaç�
 
 `packages/design_system` centraliza o tema Flutter claro, escuro e automático. Cliente, Entregador e Gestão possuem protótipos locais navegáveis com dados fictícios e imagens originais. Inter será considerada somente após verificação de licença e compatibilidade; os protótipos usam a fonte nativa. O laboratório Cliente mostra iPhone, Android e tablet numa janela Windows, sem simular iOS nativo. Autenticação, mapa/GPS, pedidos, pagamentos, notificações e serviços de produção ainda não estão integrados. Acessibilidade completa e responsividade devem passar por validação visual e testes específicos antes da homologação.
 
+### Ícones dos PWAs de homologação
+
+- Cliente: motociclista original já usado no PWA.
+- Entregador: motocicleta com caixa de entregas, em azul elétrico sobre grafite; fonte vetorial em `apps/entregador/web/icons/gogdely-entrega.svg`.
+- Gestão: fachada de loja com cartão de pedido, na mesma família visual; fonte vetorial em `apps/gestao/web/icons/gogdely-lojas.svg`.
+- Cada PWA tem PNGs 192/512, versões maskable, ícone Apple de 180 px e favicon próprio. Os ícones são desenhos vetoriais internos, sem nova dependência de runtime ou material de terceiros.
+
 ## Princípios (GOG-087 a GOG-103)
 - Moderno, minimalista, profissional; temas claro, escuro e automático.
 - Paleta aprovada acima; identidade própria de cada estabelecimento dentro de estrutura comum.

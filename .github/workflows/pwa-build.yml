@@ -12,7 +12,7 @@ on:
       - 'scripts/prepare_hosted_pwas.py'
       - 'scripts/build_render_pwas.sh'
       - 'scripts/test-release-update.cjs'
-      - 'scripts/tests/test_stamp_pwa_version.py'
+      - 'scripts/tests/**'
   push:
     branches: [develop, main]
     paths:
@@ -25,7 +25,7 @@ on:
       - 'scripts/prepare_hosted_pwas.py'
       - 'scripts/build_render_pwas.sh'
       - 'scripts/test-release-update.cjs'
-      - 'scripts/tests/test_stamp_pwa_version.py'
+      - 'scripts/tests/**'
 
 permissions:
   contents: read
@@ -73,3 +73,5 @@ jobs:
             test -s "build/pwa/$app/manifest.json"
           done
           test -s build/pwa/index.html
+          test -s build/pwa/gestao/apple-touch-icon.png
+          test -s build/pwa/entregador/apple-touch-icon.png
