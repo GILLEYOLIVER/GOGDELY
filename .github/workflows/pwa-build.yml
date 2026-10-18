@@ -9,6 +9,8 @@ on:
       - 'apps/entregador/**'
       - 'packages/**'
       - 'scripts/stamp_pwa_version.py'
+      - 'scripts/prepare_hosted_pwas.py'
+      - 'scripts/build_render_pwas.sh'
       - 'scripts/test-release-update.cjs'
       - 'scripts/tests/test_stamp_pwa_version.py'
   push:
@@ -20,6 +22,8 @@ on:
       - 'apps/entregador/**'
       - 'packages/**'
       - 'scripts/stamp_pwa_version.py'
+      - 'scripts/prepare_hosted_pwas.py'
+      - 'scripts/build_render_pwas.sh'
       - 'scripts/test-release-update.cjs'
       - 'scripts/tests/test_stamp_pwa_version.py'
 
@@ -52,10 +56,11 @@ jobs:
             (
               cd "apps/$app"
               flutter pub get
-              flutter build web --release
+              flutter build web --release --no-wasm-dry-run --base-href "/$app/"
             )
           done
           python scripts/stamp_pwa_version.py "$GITHUB_SHA"
+          python scripts/prepare_hosted_pwas.py
       - name: Verify complete release bundles
         shell: bash
         run: |
@@ -64,4 +69,7 @@ jobs:
             test -s "apps/$app/build/web/main.dart.js"
             test -s "apps/$app/build/web/version.json"
             grep -F "$GITHUB_SHA" "apps/$app/build/web/version.json"
+            test -s "build/pwa/$app/index.html"
+            test -s "build/pwa/$app/manifest.json"
           done
+          test -s build/pwa/index.html
