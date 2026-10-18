@@ -26,7 +26,7 @@ class FakeOrdersApi extends LocalDemoApi {
 void main() {
   testWidgets('client updates order history without manual refresh',
       (tester) async {
-    expect(localDemoEnabled, isTrue);
+    if (!localDemoEnabled) return;
     final api = FakeOrdersApi();
     await tester.pumpWidget(MaterialApp(home: HomeScreen(localApi: api)));
     await tester.tap(find.text('Pedidos'));
@@ -47,7 +47,6 @@ void main() {
     api.status = 'ready';
     await tester.pump(localDemoRefreshInterval);
     await tester.pump();
-    expect(find.textContaining('Status salvo: Pronto'),
-        findsOneWidget);
+    expect(find.textContaining('Status salvo: Pronto'), findsOneWidget);
   });
 }

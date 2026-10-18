@@ -27,7 +27,11 @@ class DemoProduct {
 class DemoStore {
   const DemoStore(
       this.id, this.name, this.category, this.description, this.products,
-      {this.image = '', this.rating = '4,8', this.eta = '25–35 min'});
+      {this.image = '',
+      this.rating = '4,8',
+      this.eta = '25–35 min',
+      this.latitude,
+      this.longitude});
   final String id;
   final String name;
   final String category;
@@ -36,6 +40,8 @@ class DemoStore {
   final String image;
   final String rating;
   final String eta;
+  final double? latitude;
+  final double? longitude;
 }
 
 const demoStores = <DemoStore>[

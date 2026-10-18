@@ -74,6 +74,11 @@ class _EntregadorHomeState extends State<EntregadorHome> {
   List<DemoOrder> _localOrders = const [];
   String? _localError;
   int? _updatingId;
+  int? _selectedLocalOrderId;
+
+  DemoOrder? get _selectedLocalOrder => _localOrders
+      .where((order) => order.id == _selectedLocalOrderId)
+      .firstOrNull;
 
   @override
   void initState() {
@@ -98,7 +103,7 @@ class _EntregadorHomeState extends State<EntregadorHome> {
     _refreshingOrders = true;
     final request = ++_refreshRequest;
     try {
-      final orders = (await _localApi.orders(storeId: localDemoPilotStoreId))
+      final orders = (await _localApi.orders())
           .where((order) =>
               order.orderChannel == 'delivery' &&
               order.dispatchMode == 'internal')
@@ -204,8 +209,9 @@ class _EntregadorHomeState extends State<EntregadorHome> {
   bool completed = false;
   void go(CourierPage target) {
     setState(() => page = target);
-    if (localDemoEnabled && target == CourierPage.deliveries)
+    if (localDemoEnabled && target == CourierPage.deliveries) {
       _refreshLocalOrders();
+    }
   }
 
   @override
@@ -340,6 +346,15 @@ class _EntregadorHomeState extends State<EntregadorHome> {
                                 '${demoStatusLabel(order.status)} · R\$ ${(order.totalCents / 100).toStringAsFixed(2)}'),
                             const SizedBox(height: 10),
                             if (!completed)
+                              TextButton.icon(
+                                onPressed: () => setState(() {
+                                  _selectedLocalOrderId = order.id;
+                                  page = CourierPage.route;
+                                }),
+                                icon: const Icon(Icons.route),
+                                label: const Text('Ver rota e pedido'),
+                              ),
+                            if (!completed)
                               SizedBox(
                                   width: double.infinity,
                                   child: FilledButton(
@@ -413,8 +428,10 @@ class _EntregadorHomeState extends State<EntregadorHome> {
       ));
 
   Widget _route() => _list([
-        const Text('Pedido #12345 · Burger House',
-            style: TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
+        Text(_selectedLocalOrder == null
+                ? 'Rota demonstrativa'
+                : 'Pedido #${_selectedLocalOrder!.id} · ${_selectedLocalOrder!.storeName}',
+            style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 18)),
         const SizedBox(height: 12),
         Container(
             height: 310,
@@ -439,44 +456,41 @@ class _EntregadorHomeState extends State<EntregadorHome> {
                       style: TextStyle(fontSize: 10))),
             ])),
         const SizedBox(height: 12),
-        const Card(
+        Card(
             child: ListTile(
                 leading: Icon(Icons.place_outlined),
-                title: Text('Rua das Flores, 123'),
-                subtitle: Text('Endereço fictício de entrega'))),
+                title: Text(_selectedLocalOrder?.addressLabel ?? 'Rua das Flores, 123'),
+                subtitle: const Text('Endereço do pedido de teste · rota ilustrativa'))),
         const SizedBox(height: 12),
         FilledButton(
             onPressed: () => go(CourierPage.details),
             child: const Text('Ver detalhes do pedido')),
       ]);
 
-  Widget _details() => _list([
-        const Text('Pedido #12345',
-            style: TextStyle(fontSize: 23, fontWeight: FontWeight.w900)),
-        const Text('Burger House · dados fictícios'),
+  Widget _details() => _selectedLocalOrder == null ? _list([
+        const Text('Selecione uma entrega na lista.'),
+      ]) : _list([
+        Text('Pedido #${_selectedLocalOrder!.id}',
+            style: const TextStyle(fontSize: 23, fontWeight: FontWeight.w900)),
+        Text('${_selectedLocalOrder!.storeName} · dados locais de teste'),
         const SizedBox(height: 15),
-        const Card(
+        Card(
             child: Column(children: [
-          ListTile(title: Text('1 × X-Tudo'), trailing: Text('R\$ 28,90')),
-          ListTile(title: Text('1 × Refrigerante'), trailing: Text('R\$ 6,90')),
-          Divider(),
-          ListTile(
-              title: Text('Total ilustrativo'), trailing: Text('R\$ 35,80')),
+          for (final item in _selectedLocalOrder!.items)
+            ListTile(title: Text('${item.quantity} × ${item.name}')),
+          const Divider(),
+          ListTile(title: const Text('Total de teste'),
+              trailing: Text('R\$ ${(_selectedLocalOrder!.totalCents / 100).toStringAsFixed(2)}')),
         ])),
-        const Card(
-            child: ListTile(
-                leading: Icon(Icons.person_outline),
-                title: Text('João Silva'),
-                subtitle: Text('Cliente fictício'))),
-        const Card(
-            child: ListTile(
-                leading: Icon(Icons.place_outlined),
-                title: Text('Rua das Flores, 123'),
-                subtitle: Text('Centro · São Paulo'))),
+        Card(child: ListTile(
+            leading: const Icon(Icons.place_outlined),
+            title: Text(_selectedLocalOrder!.addressLabel),
+            subtitle: const Text('Destino cadastrado no pedido local'))),
         const SizedBox(height: 12),
         FilledButton(
-            onPressed: () => go(CourierPage.status),
-            child: const Text('Atualizar cenário de entrega')),
+            onPressed: () => _advanceLocalOrder(_selectedLocalOrder!),
+            child: Text(_selectedLocalOrder!.status == 'ready'
+                ? 'Iniciar entrega local' : 'Concluir entrega local')),
       ]);
 
   Widget _status() => _list([

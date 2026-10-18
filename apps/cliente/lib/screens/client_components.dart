@@ -65,54 +65,100 @@ class DemoPhoto extends StatelessWidget {
 }
 
 const demoCategories = <(String, IconData, Color)>[
-  ('Restaurantes', Icons.restaurant, Color(0xFFFF8B25)),
+  ('Restaurantes', Icons.restaurant, GogdelyColors.blue),
+  ('Padaria', Icons.bakery_dining, GogdelyColors.blue),
   ('Mercado', Icons.shopping_basket, GogdelyColors.blue),
-  ('Farmácia', Icons.medical_services, Color(0xFFDB3650)),
+  ('Farmácia', Icons.medical_services, GogdelyColors.accent),
   ('Bebidas', Icons.local_drink, GogdelyColors.blue),
   ('Pet Shop', Icons.pets, GogdelyColors.blue),
-  ('Lojas', Icons.storefront, Color(0xFFFF8B25)),
-  ('Doces', Icons.cake, Color(0xFFB347B9)),
+  ('Lojas', Icons.storefront, GogdelyColors.blueHover),
+  ('Doces', Icons.cake, GogdelyColors.accent),
   ('Saúde e Beleza', Icons.spa, GogdelyColors.blue),
   ('Mais', Icons.more_horiz, GogdelyColors.blue),
 ];
 
 class DemoStoreCard extends StatelessWidget {
   const DemoStoreCard(this.store,
-      {super.key, required this.onTap, this.compact = false});
+      {super.key,
+      required this.onTap,
+      this.compact = false,
+      this.localPreview = false,
+      this.isFavorite = false,
+      this.onFavorite});
   final DemoStore store;
   final VoidCallback onTap;
   final bool compact;
+  final bool localPreview;
+  final bool isFavorite;
+  final VoidCallback? onFavorite;
 
   @override
   Widget build(BuildContext context) => Card(
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(18),
+            side: BorderSide(
+                color: Theme.of(context).colorScheme.outlineVariant)),
         child: InkWell(
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(18),
           onTap: onTap,
           child: Padding(
-            padding: const EdgeInsets.all(8),
+            padding: const EdgeInsets.all(12),
             child: Row(children: [
               SizedBox(
-                  width: compact ? 64 : 82,
-                  height: compact ? 64 : 82,
-                  child: DemoPhoto(store.image,
-                      height: compact ? 64 : 82, radius: 12)),
-              const SizedBox(width: 10),
+                  width: compact ? 64 : 76,
+                  height: compact ? 64 : 76,
+                  child: ClipOval(
+                      child: DemoPhoto(store.image,
+                          height: compact ? 64 : 76, radius: 0))),
+              const SizedBox(width: 12),
               Expanded(
                   child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                     Text(store.name,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            fontSize: 15, fontWeight: FontWeight.w800)),
+                    const SizedBox(height: 5),
+                    Wrap(spacing: 7, runSpacing: 4, children: [
+                      if (!localPreview) ...[
+                        const Icon(Icons.star_rounded,
+                            size: 15, color: GogdelyColors.blue),
+                        Text(store.rating,
+                            style: Theme.of(context).textTheme.labelSmall),
+                      ],
+                      const Icon(Icons.schedule_outlined,
+                          size: 14, color: GogdelyColors.blue),
+                      Text(localPreview ? '${store.eta} · prévia' : store.eta,
+                          style: Theme.of(context).textTheme.labelSmall),
+                    ]),
+                    const SizedBox(height: 5),
+                    Text(store.description,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(fontWeight: FontWeight.w700)),
-                    const SizedBox(height: 4),
-                    Text(store.category,
                         style: Theme.of(context).textTheme.bodySmall),
-                    const SizedBox(height: 4),
-                    Text('⭐ ${store.rating}  ·  ${store.eta}',
-                        style: Theme.of(context).textTheme.labelSmall),
+                    if (store.products
+                        .any((product) => product.badge.isNotEmpty))
+                      Padding(
+                          padding: const EdgeInsets.only(top: 5),
+                          child: Text('Ofertas no cardápio',
+                              style: const TextStyle(
+                                  color: GogdelyColors.blue,
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700))),
                   ])),
-              const Icon(Icons.chevron_right, size: 18),
+              if (onFavorite != null)
+                IconButton(
+                    tooltip: isFavorite
+                        ? 'Remover ${store.name} dos favoritos'
+                        : 'Favoritar ${store.name}',
+                    onPressed: onFavorite,
+                    icon: Icon(
+                        isFavorite ? Icons.favorite : Icons.favorite_border,
+                        color: isFavorite
+                            ? GogdelyColors.blue
+                            : Theme.of(context).colorScheme.outline)),
             ]),
           ),
         ),
@@ -126,17 +172,21 @@ class DemoProductTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Card(
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(
+                color: Theme.of(context).colorScheme.outlineVariant)),
         child: InkWell(
           onTap: onTap,
           borderRadius: BorderRadius.circular(16),
           child: Padding(
-            padding: const EdgeInsets.all(9),
+            padding: const EdgeInsets.all(11),
             child: Row(children: [
               SizedBox(
-                  width: 66,
-                  height: 66,
-                  child: DemoPhoto(product.image, height: 66, radius: 10)),
-              const SizedBox(width: 10),
+                  width: 78,
+                  height: 78,
+                  child: DemoPhoto(product.image, height: 78, radius: 12)),
+              const SizedBox(width: 12),
               Expanded(
                   child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -149,9 +199,6 @@ class DemoProductTile extends StatelessWidget {
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: Theme.of(context).textTheme.bodySmall),
-                    if (product.category.isNotEmpty)
-                      Text(product.category,
-                          style: Theme.of(context).textTheme.labelSmall),
                     const SizedBox(height: 3),
                     Row(children: [
                       if (product.originalPriceCents != null &&
@@ -173,7 +220,8 @@ class DemoProductTile extends StatelessWidget {
                       ],
                     ]),
                   ])),
-              const Icon(Icons.add_circle, color: GogdelyColors.blue),
+              const Icon(Icons.add_circle_outline,
+                  color: GogdelyColors.blue, size: 27),
             ]),
           ),
         ),

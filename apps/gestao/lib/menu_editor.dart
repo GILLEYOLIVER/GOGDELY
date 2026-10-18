@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:gogdely_design_system/gogdely_design_system.dart';
 import 'package:gogdely_local_demo_api/gogdely_local_demo_api.dart';
 
-/// Local-only Burger House catalogue editor. No production credentials.
+/// Local-only catalogue editor. No production credentials or real merchant login.
 class MenuEditorPage extends StatefulWidget {
   const MenuEditorPage({super.key, required this.api});
   final LocalDemoApi api;
@@ -20,6 +20,8 @@ class _MenuEditorPageState extends State<MenuEditorPage> {
   String? _error;
   bool _loading = true;
   bool _reordering = false;
+  String _storeId = localDemoPilotStoreId;
+  List<Map<String, dynamic>> _stores = const [];
 
   @override
   void initState() {
@@ -30,12 +32,16 @@ class _MenuEditorPageState extends State<MenuEditorPage> {
   Future<void> _load() async {
     setState(() => _loading = true);
     try {
-      final items = await widget.api.menu();
-      final ingredients = await widget.api.ingredients();
+      final stores = await widget.api.catalog();
+      final items = await widget.api.menu(storeId: _storeId);
+      final ingredients = _storeId == localDemoPilotStoreId
+          ? await widget.api.ingredients()
+          : <DemoIngredient>[];
       if (mounted)
         setState(() {
           _items = items;
           _ingredients = ingredients;
+          _stores = stores;
           _error = null;
         });
     } catch (error) {
@@ -89,7 +95,7 @@ class _MenuEditorPageState extends State<MenuEditorPage> {
 
   Future<void> _showHistory() async {
     try {
-      final events = await widget.api.menuEvents();
+      final events = await widget.api.menuEvents(storeId: _storeId);
       if (!mounted) return;
       await showDialog<void>(
         context: context,
@@ -151,6 +157,7 @@ class _MenuEditorPageState extends State<MenuEditorPage> {
   }
 
   Future<void> _moveItem(int index, int offset) async {
+    if (_storeId != localDemoPilotStoreId) return;
     if (_reordering || index + offset < 0 || index + offset >= _items.length)
       return;
     final ids = _items.map((item) => item.productId).toList();
@@ -398,11 +405,7 @@ if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
                       return ref.isEmpty ||
                               ref.startsWith('/api/v1/local/uploads/') ||
                               ref.startsWith('https://') ||
-                              {
-                                'assets/images/burger.png',
-                                'assets/images/pizza.png',
-                                'assets/images/sushi.png'
-                              }.contains(ref)
+                            ref.startsWith('assets/images/')
                           ? null
                           : 'Use URL HTTPS ou uma imagem interna.';
                     },
@@ -454,6 +457,7 @@ if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
                       }
                     },
                   ),
+                  if (_storeId == localDemoPilotStoreId) ...[
                   const SizedBox(height: 12),
                   const Align(
                     alignment: Alignment.centerLeft,
@@ -481,6 +485,7 @@ if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
                       }
                     },
                   ),
+                  ],
                   SwitchListTile(
                     title: const Text('Produto disponível'),
                     value: available,
@@ -520,7 +525,8 @@ if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
                             effectivePriceCents:
                                 cents * (100 - int.parse(promo.text)) ~/ 100,
                             addons: _parseAddons(addons.text),
-                            recipe: _parseRecipe(recipe.text),
+                            recipe: _storeId == localDemoPilotStoreId
+                                ? _parseRecipe(recipe.text) : const [],
                           ));
                     },
               child: const Text('Salvar'),
@@ -541,7 +547,8 @@ if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
     recipe.dispose();
     if (result == null || !mounted) return;
     try {
-      await widget.api.saveMenuItem(result, create: original == null);
+      await widget.api.saveMenuItem(result,
+          create: original == null, storeId: _storeId);
       await _load();
       if (mounted)
         ScaffoldMessenger.of(context).showSnackBar(
@@ -565,10 +572,10 @@ if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
           spacing: 12,
           runSpacing: 8,
           children: [
-            const Column(
+            Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Cardápio · Burger House',
+                  Text('Cardápio · ${_stores.where((store) => store['id'] == _storeId).firstOrNull?['name'] ?? 'carregando'}',
                       style:
                           TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
                   Text(
@@ -583,6 +590,21 @@ if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
                 icon: const Icon(Icons.history),
                 label: const Text('Histórico')),
           ]),
+      if (_stores.isNotEmpty)
+        DropdownButtonFormField<String>(
+          initialValue: _storeId,
+          decoration: const InputDecoration(
+              labelText: 'Estabelecimento de teste',
+              prefixIcon: Icon(Icons.storefront_outlined)),
+          items: [for (final store in _stores)
+            DropdownMenuItem(value: store['id'] as String,
+                child: Text(store['name'] as String))],
+          onChanged: (value) {
+            if (value == null) return;
+            setState(() => _storeId = value);
+            _load();
+          },
+        ),
       const SizedBox(height: 14),
       if (_error != null)
         Text(_error!, style: const TextStyle(color: Colors.red)),
@@ -612,13 +634,13 @@ if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
               '${item.available && !item.orderable ? ' · Faltam insumos ou produto esgotado' : ''}'
               '${item.available ? '' : ' · Indisponível'}'),
           trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-            IconButton(
+            if (_storeId == localDemoPilotStoreId) IconButton(
               tooltip: 'Mover ${item.name} para cima',
               onPressed:
                   _reordering || index == 0 ? null : () => _moveItem(index, -1),
               icon: const Icon(Icons.arrow_upward),
             ),
-            IconButton(
+            if (_storeId == localDemoPilotStoreId) IconButton(
               tooltip: 'Mover ${item.name} para baixo',
               onPressed: _reordering || index == _items.length - 1
                   ? null

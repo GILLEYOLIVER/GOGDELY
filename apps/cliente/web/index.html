@@ -13,16 +13,59 @@
   -->
   <meta name="description" content="GOGDELY: peça delivery, retiremente na loja ou consuma no local em restaurantes, mercados, farmácias e mais.">
   <meta name="robots" content="noindex, nofollow">
-  <meta name="theme-color" content="#2563EB">
+  <meta name="theme-color" content="#101522">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="GOGDELY">
+  <style>html, body { margin: 0; background-color: #101522; }</style>
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" sizes="192x192" href="apple-touch-icon-moto.png">
   <meta property="og:title" content="GOGDELY — Delivery, retirada e consumo local">
   <meta property="og:description" content="Peça de restaurantes, mercados, farmácias e mais com entrega, retirada ou consumo no local.">
   <meta property="og:type" content="website">
   <meta property="og:locale" content="pt_BR">
   <meta property="og:image" content="/og-image.png">
-  <link rel="icon" type="image/png" href="favicon.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="favicon-moto.png">
   <title>GOGDELY — Delivery, retirada e consumo local</title>
 </head>
 <body>
+  <script>
+    // Two short synthesized horn notes for the local PWA intro. Browsers may
+    // require a tap before they allow audio; the visible BIP cues still play.
+    window.gogdelyPlayHorn = function () {
+      try {
+        var AudioEngine = window.AudioContext || window.webkitAudioContext;
+        if (!AudioEngine) return;
+        var context = window.gogdelyHornContext ||
+            (window.gogdelyHornContext = new AudioEngine());
+        var requestedAt = Date.now();
+        function sound() {
+          // An autoplay-blocked request must not honk much later on an
+          // unrelated tap elsewhere in the app.
+          if (Date.now() - requestedAt > 500) return;
+          var start = context.currentTime;
+          var oscillator = context.createOscillator();
+          var volume = context.createGain();
+          oscillator.type = 'sawtooth';
+          oscillator.frequency.setValueAtTime(390, start);
+          oscillator.frequency.exponentialRampToValueAtTime(345, start + 0.20);
+          volume.gain.setValueAtTime(0.001, start);
+          volume.gain.exponentialRampToValueAtTime(0.12, start + 0.025);
+          volume.gain.exponentialRampToValueAtTime(0.001, start + 0.24);
+          oscillator.connect(volume);
+          volume.connect(context.destination);
+          oscillator.start(start);
+          oscillator.stop(start + 0.25);
+        }
+        if (context.state === 'running') {
+          sound();
+        } else {
+          context.resume().then(sound).catch(function () {});
+        }
+      } catch (_) {}
+    };
+  </script>
+  <script src="pwa_update.js"></script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

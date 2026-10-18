@@ -90,6 +90,7 @@ class _GestaoHomeState extends State<GestaoHome> {
   final List<String> saleItems = [];
   final List<int> kitchenSteps = [0, 1, 2];
   String orderFilter = 'Todos';
+  String _storeFilter = 'Todas as lojas';
 
   @override
   void initState() {
@@ -184,7 +185,7 @@ class _GestaoHomeState extends State<GestaoHome> {
     _refreshingOrders = true;
     final request = ++_refreshRequest;
     try {
-      final orders = await _localApi.orders(storeId: localDemoPilotStoreId);
+      final orders = await _localApi.orders();
       if (mounted &&
           request == _refreshRequest &&
           (_localError != null || !_sameOrders(_localOrders, orders))) {
@@ -492,11 +493,13 @@ class _GestaoHomeState extends State<GestaoHome> {
     final ordered = oldestFirst ? _localOrders.reversed : _localOrders;
     final visible = ordered
         .where((order) =>
-            !kitchenOnly ||
-            {'created', 'preparing'}.contains(order.status) ||
-            (order.status == 'ready' &&
-                (order.orderChannel != 'delivery' ||
-                    order.dispatchMode == 'pending')))
+            (_storeFilter == 'Todas as lojas' ||
+                order.storeName == _storeFilter) &&
+            (!kitchenOnly ||
+                {'created', 'preparing'}.contains(order.status) ||
+                (order.status == 'ready' &&
+                    (order.orderChannel != 'delivery' ||
+                        order.dispatchMode == 'pending'))))
         .toList();
     if (kitchenOnly) {
       visible.sort((a, b) {
@@ -528,6 +531,23 @@ class _GestaoHomeState extends State<GestaoHome> {
             onPressed: _refreshLocalOrders,
             icon: const Icon(Icons.refresh)),
       ]),
+      if (_localOrders.isNotEmpty)
+        Padding(
+          padding: const EdgeInsets.only(bottom: 8),
+          child: DropdownButtonFormField<String>(
+            initialValue: _storeFilter,
+            decoration: const InputDecoration(
+                labelText: 'Estabelecimento',
+                prefixIcon: Icon(Icons.storefront_outlined)),
+            items: [
+              'Todas as lojas',
+              ..._localOrders.map((order) => order.storeName).toSet().toList()
+                ..sort(),
+            ].map((name) => DropdownMenuItem(value: name, child: Text(name)))
+                .toList(),
+            onChanged: (value) => setState(() => _storeFilter = value ?? 'Todas as lojas'),
+          ),
+        ),
       if (_localError != null)
         Text(_localError!, style: const TextStyle(color: Colors.red)),
       if (visible.isEmpty)

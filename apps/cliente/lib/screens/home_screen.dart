@@ -5,18 +5,23 @@ import 'package:gogdely_design_system/gogdely_design_system.dart';
 import 'package:gogdely_local_demo_api/gogdely_local_demo_api.dart';
 
 import 'client_components.dart';
+import 'client_preferences.dart';
+import 'brand_motion.dart';
 import 'demo_catalog.dart';
 import 'map_demo_screen.dart';
+import 'local_location.dart';
 import 'qr_demo_screen.dart';
 
 enum _Page {
   home,
   categories,
   search,
+  offers,
   store,
   product,
   cart,
   checkout,
+  payment,
   tracking,
   orders,
   review,
@@ -47,10 +52,12 @@ class HomeScreen extends StatefulWidget {
       {super.key,
       this.themeMode = ThemeMode.system,
       this.onThemeChanged,
-      this.localApi});
+      this.localApi,
+      this.preferencesStore});
   final ThemeMode themeMode;
   final ValueChanged<ThemeMode>? onThemeChanged;
   final LocalDemoApi? localApi;
+  final ClientPreferencesStore? preferencesStore;
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -58,6 +65,9 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   late final LocalDemoApi _localApi = widget.localApi ?? LocalDemoApi();
+  late final ClientPreferencesStore _preferencesStore =
+      widget.preferencesStore ?? const DeviceClientPreferencesStore();
+  ClientPreferences _savedPreferences = const ClientPreferences();
   Timer? _localRefreshTimer;
   int _ordersRefreshRequest = 0;
   int _orderRefreshRequest = 0;
@@ -68,18 +78,30 @@ class _HomeScreenState extends State<HomeScreen> {
   String? _localError;
   String? _requestKey;
   bool _savingOrder = false;
+  bool _savingPayment = false;
+  String? _paymentRequestKey;
   DemoStore? _pilotStore;
+  List<DemoStore> _pilotStores = const [];
   bool _refreshingMenu = false;
   String? _menuError;
   String _menuFingerprint = '';
   String _catalogFingerprint = '';
   _Page page = _Page.home;
+  _Page _addressReturnPage = _Page.home;
+  _Page _paymentReturnPage = _Page.checkout;
+  DeviceLocation? _selectedLocation;
   DemoStore store = demoStores.first;
   DemoStore? cartStore;
   DemoProduct product = demoStores.first.products.first;
   final List<_CartLine> cart = [];
   String category = 'Todos';
   String search = '';
+  String _storeSort = 'Padrão';
+  bool _promotionsOnly = false;
+  final Set<String> _favoriteStoreIds = {};
+  final TextEditingController _searchController = TextEditingController();
+  final PageController _promoController = PageController(viewportFraction: .94);
+  int _promoPageIndex = 0;
   String _storeSearch = '';
   String selectedSize = 'Tradicional';
   final Set<String> extras = {};
@@ -99,16 +121,32 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _scheduleEnabled = false;
   DateTime? _scheduledAt;
   String addressLabel = 'Rua das Flores, 123';
+  final TextEditingController _addressStreetController =
+      TextEditingController(text: 'Rua das Flores');
+  final TextEditingController _addressNumberController =
+      TextEditingController(text: '123');
+  final TextEditingController _addressComplementController =
+      TextEditingController();
+  final TextEditingController _addressReferenceController =
+      TextEditingController();
+  String _addressKind = 'Casa';
   bool demoOrderCreated = false;
   int lastOrderTotal = 0;
   bool _notifyOrderStatus = true;
   bool _notifyPromotions = false;
   bool _refreshingNotifications = false;
-  List<({int orderId, String? fromStatus, String toStatus, String actor, String reason, String createdAt})>
-      _notificationEvents = const [];
+  List<
+      ({
+        int orderId,
+        String? fromStatus,
+        String toStatus,
+        String actor,
+        String reason,
+        String createdAt
+      })> _notificationEvents = const [];
 
   Iterable<DemoStore> get visibleStores =>
-      localDemoEnabled ? [_pilotStore].whereType<DemoStore>() : demoStores;
+      localDemoEnabled ? _pilotStores : demoStores;
 
   List<DemoProduct> get _visibleStoreProducts => store.products
       .where((product) =>
@@ -120,6 +158,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    _restoreClientPreferences();
     if (localDemoEnabled) {
       _refreshMenu();
       _localRefreshTimer = Timer.periodic(localDemoRefreshInterval, (_) {
@@ -129,12 +168,28 @@ class _HomeScreenState extends State<HomeScreen> {
         }
         if (page == _Page.orders) _refreshOrders();
         if (page == _Page.tracking) _refreshOrder();
-        if (page == _Page.checkout) _refreshPaymentMethods();
+        if (page == _Page.checkout || page == _Page.payment) {
+          _refreshPaymentMethods();
+        }
       });
     }
   }
 
+  void _restoreClientPreferences() {
+    _savedPreferences = ClientPreferences.decode(_preferencesStore.read());
+    _favoriteStoreIds.addAll(_savedPreferences.favoriteStoreIds);
+    _addressStreetController.text = _savedPreferences.street;
+    _addressNumberController.text = _savedPreferences.number;
+    _addressComplementController.text = _savedPreferences.complement;
+    _addressReferenceController.text = _savedPreferences.reference;
+    _addressKind = _savedPreferences.kind;
+    addressLabel = _savedPreferences.addressLabel;
+  }
+
   void open(_Page target) {
+    if (target == _Page.address && page != _Page.address) {
+      _addressReturnPage = page;
+    }
     setState(() => page = target);
     if (localDemoEnabled &&
         {_Page.home, _Page.search, _Page.store}.contains(target)) {
@@ -151,14 +206,91 @@ class _HomeScreenState extends State<HomeScreen> {
       _refreshRatings();
     }
     if (localDemoEnabled && target == _Page.store) _refreshRatings();
-    if (localDemoEnabled && target == _Page.checkout) _refreshPaymentMethods();
+    if (localDemoEnabled &&
+        (target == _Page.checkout || target == _Page.payment)) {
+      _refreshPaymentMethods();
+    }
+  }
+
+  void _openPaymentPage() {
+    _paymentReturnPage = page;
+    open(_Page.payment);
+  }
+
+  Future<void> _openMap({bool pickLocation = false}) async {
+    final selected = await Navigator.of(context).push<DeviceLocation>(
+      MaterialPageRoute(
+        builder: (routeContext) => MapDemoScreen(
+          stores: visibleStores.toList(),
+          initialLocation: _selectedLocation,
+          pickLocation: pickLocation,
+          onStoreSelected: pickLocation
+              ? null
+              : (value) {
+                  Navigator.of(routeContext).pop();
+                  openStore(value);
+                },
+        ),
+      ),
+    );
+    if (mounted && selected != null) {
+      setState(() => _selectedLocation = selected);
+    }
+  }
+
+  Future<void> _simulateLocalPayment() async {
+    final order = _savedOrder;
+    if (!localDemoEnabled ||
+        order == null ||
+        _savingPayment ||
+        order.paymentStatus != 'not_processed' ||
+        order.status == 'cancelled') {
+      return;
+    }
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Registrar pagamento de teste?'),
+        content:
+            Text('Pedido #${order.id} · ${formatDemoPrice(order.totalCents)}. '
+                'Isto registra somente uma simulação no banco local. '
+                'Nenhuma cobrança, Pix ou liquidação acontece.'),
+        actions: [
+          TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Voltar')),
+          FilledButton(
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('Registrar teste')),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() {
+      _savingPayment = true;
+      _localError = null;
+    });
+    _paymentRequestKey ??= newDemoRequestKey();
+    try {
+      final updated = await _localApi.simulatePayment(
+        orderId: order.id,
+        requestKey: _paymentRequestKey!,
+        reason: 'Simulação solicitada pelo cliente no laboratório local',
+      );
+      if (mounted) setState(() => _savedOrder = updated);
+    } catch (error) {
+      if (mounted) setState(() => _localError = '$error');
+    } finally {
+      if (mounted) setState(() => _savingPayment = false);
+    }
   }
 
   Future<void> _refreshPaymentMethods() async {
     if (_refreshingPaymentMethods) return;
     _refreshingPaymentMethods = true;
     try {
-      final methods = await _localApi.paymentMethods();
+      final methods =
+          await _localApi.paymentMethods(storeId: cartStore?.id ?? store.id);
       if (mounted &&
           (methods.join(',') != _availablePaymentMethods.join(',') ||
               !methods.contains(paymentMethod) ||
@@ -182,6 +314,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _refreshRatings() async {
     if (_refreshingRatings) return;
+    if (store.id != localDemoPilotStoreId) {
+      if (mounted) setState(() => _storeRatings = null);
+      return;
+    }
     _refreshingRatings = true;
     try {
       final ratings = await _localApi.storeRatings();
@@ -211,18 +347,14 @@ class _HomeScreenState extends State<HomeScreen> {
             builder: (dialogContext, setDialogState) => AlertDialog(
                   title: Text('Avaliar pedido #${order.id}'),
                   content: Column(mainAxisSize: MainAxisSize.min, children: [
-                    Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          for (var star = 1; star <= 5; star++)
-                            IconButton(
-                                onPressed: () =>
-                                    setDialogState(() => stars = star),
-                                icon: Icon(stars >= star
-                                    ? Icons.star
-                                    : Icons.star_border),
-                                color: GogdelyColors.blue),
-                        ]),
+                    Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+                      for (var star = 1; star <= 5; star++)
+                        IconButton(
+                            onPressed: () => setDialogState(() => stars = star),
+                            icon: Icon(
+                                stars >= star ? Icons.star : Icons.star_border),
+                            color: GogdelyColors.blue),
+                    ]),
                     TextField(
                         controller: comment,
                         maxLength: 500,
@@ -267,6 +399,12 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void dispose() {
     _localRefreshTimer?.cancel();
+    _searchController.dispose();
+    _promoController.dispose();
+    _addressStreetController.dispose();
+    _addressNumberController.dispose();
+    _addressComplementController.dispose();
+    _addressReferenceController.dispose();
     _localApi.close();
     super.dispose();
   }
@@ -275,50 +413,73 @@ class _HomeScreenState extends State<HomeScreen> {
     if (_refreshingMenu) return;
     _refreshingMenu = true;
     try {
-      final items = await _localApi.menu();
+      final catalog = await _localApi.catalog();
       if (!mounted) return;
-      final catalogFingerprint = items
-          .map((item) =>
-              '${item.productId}|${item.name}|${item.description}|${item.category}|${item.effectivePriceCents}|${item.promoPercent}|${item.imageRef}|${item.available}|${item.addons.map((addon) => '${addon.name}:${addon.priceCents}').join(',')}')
-          .join('\n');
-      final fingerprint =
-          '$catalogFingerprint|${items.map((item) => '${item.productId}:${item.stockQuantity}:${item.orderable}').join(',')}';
+      final fingerprint = catalog
+          .map((entry) =>
+              '${entry['id']}:${(entry['products'] as List).map((item) => '${item['product_id']}:${item['updated_at']}:${item['effective_price_cents']}:${item['stock_quantity']}:${item['orderable']}').join(',')}')
+          .join('|');
       if (fingerprint == _menuFingerprint && _menuError == null) return;
-      final base = demoStores.first;
-      final products = items
-          .where((item) => item.orderable)
-          .map((item) => DemoProduct(
-                item.productId,
-                item.name,
-                item.description,
-                item.effectivePriceCents,
-                image: item.imageRef,
-                badge: item.promoPercent > 0 ? '${item.promoPercent}% OFF' : '',
-                category: item.category,
-                stockQuantity: item.stockQuantity,
-                addons: item.addons,
-                originalPriceCents:
-                    item.promoPercent > 0 ? item.priceCents : null,
-              ))
-          .toList();
-      final updated = DemoStore(
-          base.id, base.name, base.category, base.description, products,
-          image: base.image, rating: base.rating, eta: base.eta);
+      final stores = catalog.map((entry) {
+        final products = (entry['products'] as List)
+            .map((item) => DemoMenuItem.fromJson(item as Map<String, dynamic>))
+            .where((item) => item.orderable)
+            .map((item) => DemoProduct(
+                  item.productId,
+                  item.name,
+                  item.description,
+                  item.effectivePriceCents,
+                  image: item.imageRef,
+                  badge:
+                      item.promoPercent > 0 ? '${item.promoPercent}% OFF' : '',
+                  category: item.category,
+                  stockQuantity: item.stockQuantity,
+                  addons: item.addons,
+                  originalPriceCents:
+                      item.promoPercent > 0 ? item.priceCents : null,
+                ))
+            .toList();
+        return DemoStore(
+            entry['id'] as String,
+            entry['name'] as String,
+            entry['category'] as String,
+            entry['description'] as String,
+            products,
+            image: entry['image'] as String? ?? '',
+            eta: entry['eta'] as String? ?? '25–35 min',
+            latitude: (entry['latitude'] as num?)?.toDouble(),
+            longitude: (entry['longitude'] as num?)?.toDouble());
+      }).toList();
+      final updated = stores.firstWhere((value) => value.id == store.id,
+          orElse: () => stores.first);
+      final cartCatalog =
+          catalog.where((entry) => entry['id'] == cartStore?.id).firstOrNull;
+      final cartFingerprint = cartCatalog == null
+          ? ''
+          : '${cartCatalog['id']}:${(cartCatalog['products'] as List).map((item) => '${item['product_id']}:${item['updated_at']}:${item['effective_price_cents']}:${item['stock_quantity']}:${item['orderable']}').join(',')}';
       final cartCleared = cart.isNotEmpty &&
           ((_catalogFingerprint.isNotEmpty &&
-                  _catalogFingerprint != catalogFingerprint) ||
-              cart.any((line) =>
-                  !products.any((item) => item.id == line.product.id)));
+                  _catalogFingerprint != cartFingerprint) ||
+              cartCatalog == null ||
+              cart.any((line) => !stores
+                  .firstWhere((value) => value.id == cartStore?.id,
+                      orElse: () => updated)
+                  .products
+                  .any((item) => item.id == line.product.id)));
       setState(() {
         if (cartCleared) {
           cart.clear();
           cartStore = null;
           _requestKey = null;
         }
-        _pilotStore = updated;
+        _pilotStores = stores;
+        _pilotStore = stores
+            .where((value) => value.id == localDemoPilotStoreId)
+            .firstOrNull;
         if (store.id == updated.id) store = updated;
-        final selected =
-            products.where((value) => value.id == product.id).firstOrNull;
+        final selected = updated.products
+            .where((value) => value.id == product.id)
+            .firstOrNull;
         if (selected != null) {
           product = selected;
           if (selected.stockQuantity != null &&
@@ -331,7 +492,7 @@ class _HomeScreenState extends State<HomeScreen> {
           page = _Page.store;
         }
         _menuFingerprint = fingerprint;
-        _catalogFingerprint = catalogFingerprint;
+        _catalogFingerprint = cartFingerprint;
         _menuError = null;
       });
       if (cartCleared) {
@@ -352,7 +513,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _refreshingOrders = true;
     final request = ++_ordersRefreshRequest;
     try {
-      final orders = (await _localApi.orders(storeId: localDemoPilotStoreId))
+      final orders = (await _localApi.orders())
           .where((order) => order.orderChannel != 'counter')
           .toList();
       if (mounted &&
@@ -523,6 +684,7 @@ class _HomeScreenState extends State<HomeScreen> {
       setState(() {
         store = cartStore!;
         _savedOrder = order;
+        _paymentRequestKey = null;
         lastOrderTotal = order.totalCents;
         demoOrderCreated = true;
         cart.clear();
@@ -576,6 +738,21 @@ class _HomeScreenState extends State<HomeScreen> {
         productQuantity = 1;
         page = _Page.product;
       });
+
+  void _searchFor(String term) {
+    _searchController.text = term;
+    setState(() {
+      search = term;
+      category = 'Todos';
+      page = _Page.search;
+    });
+  }
+
+  void _openSearchProduct(DemoStore owner, DemoProduct value) {
+    store = owner;
+    _storeSearch = '';
+    openProduct(value);
+  }
 
   int get itemCount => cart.fold(0, (sum, line) => sum + line.quantity);
   int get subtotal => cart.fold(0, (sum, line) => sum + line.subtotal);
@@ -654,16 +831,210 @@ class _HomeScreenState extends State<HomeScreen> {
       _Page.home,
       _Page.categories,
       _Page.search,
+      _Page.offers,
       _Page.orders,
       _Page.profile
     }.contains(page);
     return Scaffold(
-      backgroundColor: darkPage ? GogdelyColors.darkBackground : null,
+      backgroundColor: darkPage
+          ? GogdelyColors.darkBackground
+          : dark
+              ? null
+              : Colors.white,
       appBar: _appBar(darkPage),
-      body: SafeArea(child: _pageBody()),
-      bottomNavigationBar: showNav ? _navigation(darkPage || dark) : null,
+      body: SafeArea(
+        child: AnimatedSwitcher(
+          duration: MediaQuery.disableAnimationsOf(context)
+              ? Duration.zero
+              : const Duration(milliseconds: 220),
+          switchInCurve: Curves.easeOutCubic,
+          switchOutCurve: Curves.easeInCubic,
+          layoutBuilder: (currentChild, _) =>
+              currentChild ?? const SizedBox.shrink(),
+          transitionBuilder: (child, animation) => FadeTransition(
+            opacity: animation,
+            child: SlideTransition(
+              position: Tween<Offset>(
+                      begin: const Offset(.035, .015), end: Offset.zero)
+                  .animate(animation),
+              child: child,
+            ),
+          ),
+          child: KeyedSubtree(key: ValueKey(page), child: _pageBody()),
+        ),
+      ),
+      bottomNavigationBar:
+          showNav ? _navigation(darkPage || dark) : _checkoutActionBar(),
     );
   }
+
+  Widget? _checkoutActionBar() {
+    if (page == _Page.product) {
+      return _bottomAction(
+        label:
+            'Adicionar · ${formatDemoPrice(selectedPrice * productQuantity)}',
+        onPressed: addSelectedProduct,
+        leading: _quantityControl(),
+      );
+    }
+    if (page == _Page.cart && cart.isNotEmpty) {
+      return _bottomAction(
+        label: 'Continuar',
+        onPressed: () => open(_Page.checkout),
+        leading: _bottomTotal(),
+      );
+    }
+    if (page == _Page.checkout && cart.isNotEmpty) {
+      return _bottomAction(
+        label: _savingOrder
+            ? 'Salvando no banco local...'
+            : 'Revisar pedido · ${formatDemoPrice(total)}',
+        onPressed: _savingOrder ||
+                (localDemoEnabled &&
+                    (!_paymentMethodsLoaded || _paymentMethodsError != null))
+            ? null
+            : _reviewAndSubmitOrder,
+        leading: _bottomTotal(),
+      );
+    }
+    if (page == _Page.payment) {
+      return _bottomAction(
+          label: 'Usar ${demoPaymentLabel(paymentMethod)}',
+          onPressed: () => open(_paymentReturnPage));
+    }
+    if (page == _Page.address) {
+      return _bottomAction(label: 'Salvar endereço', onPressed: _saveAddress);
+    }
+    return null;
+  }
+
+  void _createFictionalOrder() => setState(() {
+        lastOrderTotal = total;
+        demoOrderCreated = true;
+        trackingStep = 0;
+        cart.clear();
+        cartStore = null;
+        page = _Page.tracking;
+      });
+
+  Future<void> _reviewAndSubmitOrder() async {
+    if (cart.isEmpty || _savingOrder) return;
+    final confirmed = await showModalBottomSheet<bool>(
+      context: context,
+      showDragHandle: true,
+      isScrollControlled: true,
+      builder: (sheetContext) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+          child: Column(mainAxisSize: MainAxisSize.min, children: [
+            const Text('Revise o seu pedido',
+                style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
+            const SizedBox(height: 18),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.storefront_outlined),
+              title: Text(cartStore?.name ?? store.name),
+              subtitle: Text('$itemCount ${itemCount == 1 ? 'item' : 'itens'}'),
+            ),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: Icon(_orderChannel == 'pickup'
+                  ? Icons.store_mall_directory_outlined
+                  : Icons.location_on_outlined),
+              title: Text(_orderChannel == 'pickup'
+                  ? 'Retirada na loja'
+                  : 'Entrega em $addressLabel'),
+              subtitle: Text(_scheduleEnabled && _scheduledAt != null
+                  ? _formatSchedule(_scheduledAt!)
+                  : 'Assim que possível'),
+            ),
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.account_balance_wallet_outlined),
+              title: Text(demoPaymentLabel(paymentMethod)),
+              subtitle: const Text('Forma pretendida; sem cobrança no app'),
+            ),
+            const Divider(),
+            Row(children: [
+              const Expanded(
+                  child: Text('Total estimado',
+                      style: TextStyle(fontWeight: FontWeight.w700))),
+              Text(formatDemoPrice(total),
+                  style: const TextStyle(
+                      fontSize: 20, fontWeight: FontWeight.w800)),
+            ]),
+            const SizedBox(height: 18),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: () => Navigator.pop(sheetContext, true),
+                child: const Text('Confirmar pedido fictício'),
+              ),
+            ),
+            TextButton(
+              onPressed: () => Navigator.pop(sheetContext, false),
+              child: const Text('Alterar pedido'),
+            ),
+          ]),
+        ),
+      ),
+    );
+    if (!mounted || confirmed != true) return;
+    if (localDemoEnabled) {
+      await _submitLocalOrder();
+    } else {
+      _createFictionalOrder();
+    }
+  }
+
+  Widget _bottomTotal() => Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text('Total estimado', style: TextStyle(fontSize: 11)),
+          Text(formatDemoPrice(total),
+              style: const TextStyle(fontWeight: FontWeight.w800)),
+        ],
+      );
+
+  Widget _quantityControl() => Row(mainAxisSize: MainAxisSize.min, children: [
+        IconButton(
+            tooltip: 'Diminuir quantidade',
+            onPressed: productQuantity > 1
+                ? () => setState(() => productQuantity--)
+                : null,
+            icon: const Icon(Icons.remove, size: 19)),
+        Text('$productQuantity'),
+        IconButton(
+            tooltip: 'Aumentar quantidade',
+            onPressed: product.stockQuantity != null &&
+                    productQuantity >= product.stockQuantity!
+                ? null
+                : () => setState(() => productQuantity++),
+            icon: const Icon(Icons.add, size: 19)),
+      ]);
+
+  Widget _bottomAction({
+    required String label,
+    required VoidCallback? onPressed,
+    Widget? leading,
+  }) =>
+      Container(
+        padding: EdgeInsets.fromLTRB(
+            16, 10, 16, 10 + MediaQuery.paddingOf(context).bottom),
+        decoration: BoxDecoration(
+            color: Theme.of(context).scaffoldBackgroundColor,
+            border: Border(top: BorderSide(color: Colors.grey.shade200)),
+            boxShadow: const [
+              BoxShadow(color: Color(0x12000000), blurRadius: 12)
+            ]),
+        child: Row(children: [
+          if (leading != null) ...[leading, const SizedBox(width: 12)],
+          Expanded(
+              child: FilledButton(
+                  onPressed: onPressed, child: Text(label, maxLines: 1))),
+        ]),
+      );
 
   PreferredSizeWidget? _appBar(bool darkPage) {
     if ({_Page.splash, _Page.onboarding, _Page.complete}.contains(page)) {
@@ -671,17 +1042,31 @@ class _HomeScreenState extends State<HomeScreen> {
     }
     if (page == _Page.home) {
       return AppBar(
-        toolbarHeight: 70,
+        toolbarHeight: 82,
         titleSpacing: 16,
         title: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-          const BrandWordmark(size: 23),
-          Text(addressLabel,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style:
-                  const TextStyle(fontSize: 11, fontWeight: FontWeight.w500)),
+          const AnimatedBrandLogo(),
+          const SizedBox(height: 4),
+          InkWell(
+              onTap: () => open(_Page.address),
+              child: Row(children: [
+                const Icon(Icons.location_on_outlined,
+                    color: GogdelyColors.blue, size: 17),
+                const SizedBox(width: 4),
+                Flexible(
+                    child: Text(addressLabel,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                            fontSize: 13, fontWeight: FontWeight.w700))),
+                const Icon(Icons.keyboard_arrow_down, size: 17),
+              ])),
         ]),
         actions: [
+          IconButton(
+              tooltip: 'Sacola',
+              onPressed: () => open(_Page.cart),
+              icon: _cartIcon()),
           IconButton(
               tooltip: 'Notificações',
               onPressed: () => open(_Page.notifications),
@@ -692,24 +1077,31 @@ class _HomeScreenState extends State<HomeScreen> {
     final titles = <_Page, String>{
       _Page.categories: 'Categorias',
       _Page.search: 'Busca',
+      _Page.offers: 'Ofertas',
       _Page.store: store.name,
       _Page.product: product.name,
-      _Page.cart: 'Carrinho',
-      _Page.checkout: 'Checkout',
+      _Page.cart: 'SACOLA',
+      _Page.checkout: 'REVISAR PEDIDO',
+      _Page.payment: 'PAGAMENTO',
       _Page.tracking: 'Acompanhamento',
       _Page.orders: 'Meus pedidos',
       _Page.review: 'Avaliar pedido',
-      _Page.profile: 'Meu perfil',
+      _Page.profile: 'Minha área',
       _Page.notifications: 'Notificações',
-      _Page.address: 'Endereço',
+      _Page.address: 'ENDEREÇO DE ENTREGA',
       _Page.login: 'Entrar',
       _Page.settings: 'Configurações',
     };
     return AppBar(
       backgroundColor: darkPage ? GogdelyColors.darkBackground : null,
       foregroundColor: darkPage ? Colors.white : null,
-      leading: {_Page.categories, _Page.search, _Page.orders, _Page.profile}
-              .contains(page)
+      leading: {
+        _Page.categories,
+        _Page.search,
+        _Page.offers,
+        _Page.orders,
+        _Page.profile
+      }.contains(page)
           ? null
           : IconButton(
               tooltip: 'Voltar',
@@ -724,7 +1116,16 @@ class _HomeScreenState extends State<HomeScreen> {
                   onPressed: () => open(_Page.cart),
                   icon: _cartIcon())
             ]
-          : null,
+          : page == _Page.cart && cart.isNotEmpty
+              ? [
+                  TextButton(
+                      onPressed: () => setState(() {
+                            cart.clear();
+                            cartStore = null;
+                          }),
+                      child: const Text('Limpar'))
+                ]
+              : null,
     );
   }
 
@@ -732,13 +1133,11 @@ class _HomeScreenState extends State<HomeScreen> {
         _Page.product => _Page.store,
         _Page.cart => _Page.store,
         _Page.checkout => _Page.cart,
+        _Page.payment => _paymentReturnPage,
         _Page.tracking || _Page.review => _Page.orders,
         _Page.store => _Page.home,
-        _Page.address ||
-        _Page.notifications ||
-        _Page.settings ||
-        _Page.login =>
-          _Page.profile,
+        _Page.address => _addressReturnPage,
+        _Page.notifications || _Page.settings || _Page.login => _Page.profile,
         _ => _Page.home,
       };
 
@@ -748,28 +1147,40 @@ class _HomeScreenState extends State<HomeScreen> {
         child: const Icon(Icons.shopping_bag_outlined),
       );
 
-  Widget _navigation(bool dark) => NavigationBar(
+  Widget _navigation(bool dark) => BottomNavigationBar(
         backgroundColor: dark ? GogdelyColors.darkBackground : Colors.white,
-        indicatorColor: dark
-            ? GogdelyColors.blue.withValues(alpha: .22)
-            : const Color(0xFFDDE8FF),
-        selectedIndex: switch (page) {
+        type: BottomNavigationBarType.fixed,
+        selectedItemColor: dark ? Colors.white : GogdelyColors.graphite,
+        unselectedItemColor: dark ? Colors.white70 : GogdelyColors.mutedLight,
+        selectedFontSize: 11,
+        unselectedFontSize: 11,
+        currentIndex: switch (page) {
           _Page.search || _Page.categories => 1,
-          _Page.orders => 2,
-          _Page.profile => 3,
+          _Page.offers => 2,
+          _Page.orders => 3,
+          _Page.profile => 4,
           _ => 0,
         },
-        onDestinationSelected: (index) => open(
-            [_Page.home, _Page.search, _Page.orders, _Page.profile][index]),
-        destinations: const [
-          NavigationDestination(
+        onTap: (index) => open([
+          _Page.home,
+          _Page.search,
+          _Page.offers,
+          _Page.orders,
+          _Page.profile
+        ][index]),
+        items: const [
+          BottomNavigationBarItem(
               icon: Icon(Icons.home_outlined),
-              selectedIcon: Icon(Icons.home),
+              activeIcon: Icon(Icons.home),
               label: 'Início'),
-          NavigationDestination(icon: Icon(Icons.search), label: 'Busca'),
-          NavigationDestination(
+          BottomNavigationBarItem(icon: Icon(Icons.search), label: 'Busca'),
+          BottomNavigationBarItem(
+              icon: Icon(Icons.local_offer_outlined),
+              activeIcon: Icon(Icons.local_offer),
+              label: 'Ofertas'),
+          BottomNavigationBarItem(
               icon: Icon(Icons.receipt_long_outlined), label: 'Pedidos'),
-          NavigationDestination(
+          BottomNavigationBarItem(
               icon: Icon(Icons.person_outline), label: 'Perfil'),
         ],
       );
@@ -778,10 +1189,12 @@ class _HomeScreenState extends State<HomeScreen> {
         _Page.home => _home(),
         _Page.categories => _categories(),
         _Page.search => _searchPage(),
+        _Page.offers => _offersPage(),
         _Page.store => _storePage(),
         _Page.product => _productPage(),
         _Page.cart => _cartPage(),
         _Page.checkout => _checkoutPage(),
+        _Page.payment => _paymentPage(),
         _Page.tracking => _trackingPage(),
         _Page.orders => _ordersPage(),
         _Page.review => _reviewPage(),
@@ -814,70 +1227,35 @@ class _HomeScreenState extends State<HomeScreen> {
       );
 
   Widget _home() => _list([
+        _mainCategoryRail(),
+        const SizedBox(height: 14),
         TextField(
           readOnly: true,
           onTap: () => open(_Page.search),
           decoration: const InputDecoration(
               prefixIcon: Icon(Icons.search),
-              hintText: 'O que você procura hoje?',
-              suffixIcon: Icon(Icons.tune)),
+              hintText: 'Busque lojas ou pratos'),
         ),
-        const SizedBox(height: 12),
-        InkWell(
-          onTap: () {
-            if (!localDemoEnabled || _pilotStore != null) {
-              openStore(_pilotStore ?? demoStores.first);
-            }
-          },
-          borderRadius: BorderRadius.circular(16),
-          child: Stack(children: [
-            const DemoPhoto('assets/images/burger.png', height: 154),
-            Container(
-              height: 154,
-              decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(16),
-                  gradient: const LinearGradient(
-                      colors: [Colors.black87, Colors.transparent])),
-              padding: const EdgeInsets.all(15),
-              child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('Sabor que\nse aproxima.',
-                        style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 21,
-                            fontWeight: FontWeight.w900,
-                            height: 1.05)),
-                    const SizedBox(height: 5),
-                    const Text('Confira o cardápio',
-                        style: TextStyle(color: Colors.white, fontSize: 12)),
-                    const Spacer(),
-                    Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 12, vertical: 7),
-                        decoration: BoxDecoration(
-                            color: GogdelyColors.blue,
-                            borderRadius: BorderRadius.circular(9)),
-                        child: const Text('Ver ofertas',
-                            style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700))),
-                  ]),
-            ),
-          ]),
-        ),
-        if (!localDemoEnabled) _categoryGrid(compact: true),
+        const SizedBox(height: 18),
+        _promoCarousel(),
+        _quickDiscovery(),
+        _featuredProducts(),
+        _filterBar(),
         _sectionTitle(
-            localDemoEnabled ? 'Empresa piloto' : 'Estabelecimentos próximos',
+            localDemoEnabled ? 'Lojas do laboratório' : 'Lojas para explorar',
             onMore: () => open(_Page.search)),
         for (final value in visibleStores.take(4))
-          DemoStoreCard(value, onTap: () => openStore(value)),
+          DemoStoreCard(value,
+              localPreview: localDemoEnabled,
+              isFavorite: _favoriteStoreIds.contains(value.id),
+              onFavorite: () => _toggleFavorite(value.id),
+              onTap: () => openStore(value)),
         if (localDemoEnabled && _pilotStore == null)
           Text(_menuError ?? 'Carregando cardápio local da Burger House...'),
         if (localDemoEnabled &&
             _pilotStore != null &&
-            _pilotStore!.products.any((product) => product.badge.isNotEmpty)) ...[
+            _pilotStore!.products
+                .any((product) => product.badge.isNotEmpty)) ...[
           _sectionTitle('Promoções da Burger House',
               onMore: () => openStore(_pilotStore!)),
           for (final product in _pilotStore!.products
@@ -911,19 +1289,387 @@ class _HomeScreenState extends State<HomeScreen> {
                           builder: (_) => const QrDemoScreen())))),
           const SizedBox(width: 8),
           Expanded(
-              child: _resourceTile(
-                  Icons.map_outlined,
-                  'Mapa',
-                  () => Navigator.push(
-                      context,
-                      MaterialPageRoute<void>(
-                          builder: (_) => const MapDemoScreen())))),
+              child:
+                  _resourceTile(Icons.map_outlined, 'Mapa', () => _openMap())),
         ]),
         const SizedBox(height: 8),
         const Text(
             'Prévia local com dados fictícios. Sem pedidos ou pagamentos reais.',
             style: TextStyle(fontSize: 11)),
       ]);
+
+  Widget _promoCarousel() {
+    final available = visibleStores.toList();
+    final source = available.isEmpty ? demoStores : available;
+    DemoStore pick(String type, int fallback) => source.firstWhere(
+          (candidate) => candidate.category == type,
+          orElse: () => source[fallback % source.length],
+        );
+    final promotions = [
+      (
+        store: source.first,
+        title: 'Sabor que\nse aproxima.',
+        action: 'Ver cardápio'
+      ),
+      (
+        store: pick('Mercado', 1),
+        title: 'Seu dia a dia\nmais simples.',
+        action: 'Explorar loja'
+      ),
+      (
+        store: pick('Farmácia', 2),
+        title: 'Cuidado que\nchega até você.',
+        action: 'Ver produtos'
+      ),
+    ];
+    return Column(children: [
+      SizedBox(
+        height: 204,
+        child: PageView.builder(
+          controller: _promoController,
+          itemCount: promotions.length,
+          onPageChanged: (index) => setState(() => _promoPageIndex = index),
+          itemBuilder: (context, index) {
+            final promotion = promotions[index];
+            return Padding(
+              padding: const EdgeInsets.only(right: 10),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(22),
+                child: Material(
+                  color: GogdelyColors.graphite,
+                  child: InkWell(
+                    onTap: localDemoEnabled && available.isEmpty
+                        ? null
+                        : () => openStore(promotion.store),
+                    child: Stack(fit: StackFit.expand, children: [
+                      DemoPhoto(promotion.store.image, height: 204, radius: 0),
+                      const DecoratedBox(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [Color(0xE5151B2B), Color(0x10151B2B)],
+                          ),
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.all(18),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(promotion.title,
+                                style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 25,
+                                    fontWeight: FontWeight.w900,
+                                    height: 1.05)),
+                            const SizedBox(height: 6),
+                            Text(
+                                localDemoEnabled && available.isEmpty
+                                    ? 'Carregando lojas locais...'
+                                    : promotion.store.name,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                    color: Colors.white, fontSize: 12)),
+                            const Spacer(),
+                            DecoratedBox(
+                              decoration: BoxDecoration(
+                                  color: GogdelyColors.blue,
+                                  borderRadius: BorderRadius.circular(10)),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 12, vertical: 8),
+                                child: Text(promotion.action,
+                                    style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.w700)),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ]),
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      ),
+      const SizedBox(height: 9),
+      Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+        for (var index = 0; index < promotions.length; index++)
+          AnimatedContainer(
+            duration: MediaQuery.disableAnimationsOf(context)
+                ? Duration.zero
+                : const Duration(milliseconds: 180),
+            width: index == _promoPageIndex ? 18 : 6,
+            height: 6,
+            margin: const EdgeInsets.symmetric(horizontal: 3),
+            decoration: BoxDecoration(
+              color: index == _promoPageIndex
+                  ? GogdelyColors.blue
+                  : GogdelyColors.accent.withValues(alpha: .35),
+              borderRadius: BorderRadius.circular(9),
+            ),
+          ),
+      ]),
+    ]);
+  }
+
+  void _toggleFavorite(String id) {
+    setState(() {
+      if (!_favoriteStoreIds.add(id)) _favoriteStoreIds.remove(id);
+    });
+    _savedPreferences = ClientPreferences(
+      street: _savedPreferences.street,
+      number: _savedPreferences.number,
+      complement: _savedPreferences.complement,
+      reference: _savedPreferences.reference,
+      kind: _savedPreferences.kind,
+      favoriteStoreIds: _favoriteStoreIds,
+    );
+    if (!_preferencesStore.write(_savedPreferences.encode())) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text(
+              'Favorito apenas nesta sessão; armazenamento indisponível.')));
+    }
+  }
+
+  Widget _mainCategoryRail() {
+    final available = visibleStores.map((store) => store.category).toSet();
+    final entries = demoCategories.where((entry) =>
+        !localDemoEnabled ||
+        available.isEmpty ||
+        available.contains(entry.$1) ||
+        entry.$1 == 'Mais');
+    return SizedBox(
+      height: 54,
+      child: ListView(scrollDirection: Axis.horizontal, children: [
+        for (final (name, icon, _) in entries)
+          Padding(
+              padding: const EdgeInsets.only(right: 8),
+              child: ChoiceChip(
+                avatar: Icon(icon,
+                    size: 19,
+                    color:
+                        category == name ? Colors.white : GogdelyColors.blue),
+                label: Text(name),
+                selected: category == name,
+                selectedColor: GogdelyColors.blue,
+                labelStyle: TextStyle(
+                    color: category == name ? Colors.white : null,
+                    fontWeight: FontWeight.w600),
+                onSelected: (_) {
+                  if (name == 'Mais') {
+                    open(_Page.categories);
+                    return;
+                  }
+                  setState(() => category = name);
+                  open(_Page.search);
+                },
+              )),
+      ]),
+    );
+  }
+
+  Widget _quickDiscovery() {
+    final labels = localDemoEnabled
+        ? (_pilotStores
+            .expand((store) => store.products)
+            .map((product) => product.category.trim())
+            .where((label) => label.isNotEmpty)
+            .toSet()
+            .toList())
+        : ['Lanches', 'Pizza', 'Sushi', 'Promoções'];
+    if (labels.isEmpty) return const SizedBox.shrink();
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      _sectionTitle(
+          localDemoEnabled ? 'Explore os cardápios' : 'O que você procura?'),
+      SizedBox(
+          height: 103,
+          child: ListView(scrollDirection: Axis.horizontal, children: [
+            for (final label in labels)
+              Padding(
+                  padding: const EdgeInsets.only(right: 10),
+                  child: InkWell(
+                      onTap: () => label == 'Promoções'
+                          ? open(_Page.offers)
+                          : _searchFor(label),
+                      borderRadius: BorderRadius.circular(16),
+                      child: SizedBox(
+                          width: 88,
+                          child: Column(children: [
+                            Container(
+                              width: 66,
+                              height: 66,
+                              decoration: BoxDecoration(
+                                  color:
+                                      GogdelyColors.blue.withValues(alpha: .08),
+                                  borderRadius: BorderRadius.circular(18)),
+                              child: Icon(
+                                  label == 'Promoções'
+                                      ? Icons.local_offer_outlined
+                                      : _discoveryIcon(label),
+                                  color: GogdelyColors.blue,
+                                  size: 31),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(label,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.center,
+                                style: const TextStyle(fontSize: 12)),
+                          ])))),
+          ])),
+    ]);
+  }
+
+  IconData _discoveryIcon(String label) {
+    final value = label.toLowerCase();
+    if (value.contains('pizza')) return Icons.local_pizza_outlined;
+    if (value.contains('açaí') || value.contains('sobremesa')) {
+      return Icons.icecream_outlined;
+    }
+    if (value.contains('bebida')) return Icons.local_drink_outlined;
+    if (value.contains('saúde') || value.contains('farmácia')) {
+      return Icons.medical_services_outlined;
+    }
+    if (value.contains('pet')) return Icons.pets_outlined;
+    if (value.contains('pão') || value.contains('padaria')) {
+      return Icons.bakery_dining_outlined;
+    }
+    if (value.contains('mercado') || value.contains('horti')) {
+      return Icons.shopping_basket_outlined;
+    }
+    return Icons.restaurant_menu;
+  }
+
+  List<({DemoStore store, DemoProduct product})> get _offerProducts => [
+        for (final value in visibleStores)
+          for (final item in value.products)
+            if (item.badge.isNotEmpty) (store: value, product: item),
+      ];
+
+  Widget _featuredProducts() {
+    final items = _offerProducts.isNotEmpty
+        ? _offerProducts
+        : [
+            for (final value in visibleStores)
+              for (final item in value.products.take(1))
+                (store: value, product: item),
+          ];
+    if (items.isEmpty) return const SizedBox.shrink();
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      _sectionTitle(
+          _offerProducts.isNotEmpty ? 'Ofertas do cardápio' : 'Em destaque',
+          onMore: _offerProducts.isNotEmpty ? () => open(_Page.offers) : null),
+      SizedBox(
+          height: 218,
+          child: ListView(scrollDirection: Axis.horizontal, children: [
+            for (final entry in items.take(6))
+              Padding(
+                  padding: const EdgeInsets.only(right: 12),
+                  child: SizedBox(
+                      width: 148,
+                      child: InkWell(
+                          onTap: () =>
+                              _openSearchProduct(entry.store, entry.product),
+                          borderRadius: BorderRadius.circular(16),
+                          child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                SizedBox(
+                                    height: 138,
+                                    child: DemoPhoto(entry.product.image,
+                                        height: 138, radius: 16)),
+                                const SizedBox(height: 6),
+                                Text(entry.product.name,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: const TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.w700)),
+                                Text(formatDemoPrice(entry.product.priceCents),
+                                    style: const TextStyle(
+                                        color: GogdelyColors.blue,
+                                        fontWeight: FontWeight.w800)),
+                                Text(entry.store.name,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style:
+                                        Theme.of(context).textTheme.labelSmall),
+                              ])))),
+          ])),
+    ]);
+  }
+
+  Widget _filterBar() => Padding(
+        padding: const EdgeInsets.only(top: 20, bottom: 2),
+        child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(children: [
+              ActionChip(
+                  avatar: const Icon(Icons.sort, size: 18),
+                  label: Text(_storeSort == 'Padrão' ? 'Ordenar' : _storeSort),
+                  onPressed: _openSortSheet),
+              const SizedBox(width: 8),
+              FilterChip(
+                  label: const Text('Ofertas'),
+                  selected: _promotionsOnly,
+                  onSelected: (value) => setState(() {
+                        _promotionsOnly = value;
+                        page = _Page.search;
+                      })),
+              const SizedBox(width: 8),
+              ActionChip(
+                  label: const Text('Categorias'),
+                  onPressed: () => open(_Page.categories)),
+            ])),
+      );
+
+  Future<void> _openSortSheet() async {
+    final selected = await showModalBottomSheet<String>(
+        context: context,
+        showDragHandle: true,
+        builder: (context) => SafeArea(
+            child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 8, 20, 20),
+                child: Column(mainAxisSize: MainAxisSize.min, children: [
+                  const Text('Ordenar lojas',
+                      style:
+                          TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+                  const SizedBox(height: 10),
+                  for (final value in ['Padrão', 'Avaliação', 'Tempo estimado'])
+                    ListTile(
+                        title: Text(value),
+                        leading: Icon(
+                            _storeSort == value
+                                ? Icons.radio_button_checked
+                                : Icons.radio_button_unchecked,
+                            color: GogdelyColors.blue),
+                        onTap: () => Navigator.pop(context, value)),
+                ]))));
+    if (selected != null && mounted) setState(() => _storeSort = selected);
+  }
+
+  Widget _offersPage() {
+    final items = _offerProducts;
+    return _list([
+      const Text('Ofertas do cardápio',
+          style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
+      const Text('Valores da prévia; confira o total antes de salvar o pedido.',
+          style: TextStyle(fontSize: 12)),
+      const SizedBox(height: 14),
+      if (items.isEmpty)
+        const Padding(
+            padding: EdgeInsets.all(20),
+            child: Text('Nenhuma oferta cadastrada neste cardápio.')),
+      for (final entry in items)
+        DemoProductTile(entry.product,
+            onTap: () => _openSearchProduct(entry.store, entry.product)),
+    ]);
+  }
 
   Widget _resourceTile(IconData icon, String label, VoidCallback action) =>
       Card(
@@ -993,32 +1739,89 @@ class _HomeScreenState extends State<HomeScreen> {
         _categoryGrid(),
       ]);
 
-  List<DemoStore> get searchResults => visibleStores.where((value) {
-        final matchCategory = category == 'Todos' || value.category == category;
-        final term = search.trim().toLowerCase();
-        return matchCategory &&
-            (term.isEmpty ||
-                value.name.toLowerCase().contains(term) ||
-                value.category.toLowerCase().contains(term) ||
-                value.products.any((p) => p.name.toLowerCase().contains(term)));
-      }).toList();
+  List<DemoStore> get searchResults {
+    final term = search.trim().toLowerCase();
+    final matches = visibleStores.where((value) {
+      final matchCategory = category == 'Todos' || value.category == category;
+      return matchCategory &&
+          (!_promotionsOnly ||
+              value.products.any((item) => item.badge.isNotEmpty)) &&
+          (term.isEmpty ||
+              value.name.toLowerCase().contains(term) ||
+              value.category.toLowerCase().contains(term) ||
+              value.products.any((p) => p.name.toLowerCase().contains(term)));
+    }).toList();
+    if (_storeSort == 'Avaliação') {
+      matches.sort((a, b) => b.rating.compareTo(a.rating));
+    } else if (_storeSort == 'Tempo estimado') {
+      int minutes(DemoStore value) =>
+          int.tryParse(RegExp(r'\d+').firstMatch(value.eta)?.group(0) ?? '') ??
+          999;
+      matches.sort((a, b) => minutes(a).compareTo(minutes(b)));
+    }
+    return matches;
+  }
+
+  List<({DemoStore store, DemoProduct product})> get productSearchResults {
+    final term = search.trim().toLowerCase();
+    if (term.isEmpty) return const [];
+    return [
+      for (final value in visibleStores)
+        if (category == 'Todos' || value.category == category)
+          for (final item in value.products)
+            if ((!_promotionsOnly || item.badge.isNotEmpty) &&
+                (item.name.toLowerCase().contains(term) ||
+                    item.category.toLowerCase().contains(term)))
+              (store: value, product: item),
+    ];
+  }
 
   Widget _searchPage() => _list([
         TextField(
           autofocus: false,
-          decoration: const InputDecoration(
-              prefixIcon: Icon(Icons.search),
+          controller: _searchController,
+          textInputAction: TextInputAction.search,
+          decoration: InputDecoration(
+              prefixIcon: const Icon(Icons.search),
               hintText: localDemoEnabled
-                  ? 'Busque no cardápio da Burger House'
-                  : 'Busque lojas ou produtos'),
+                  ? 'Busque lojas ou produtos locais'
+                  : 'Busque lojas ou produtos',
+              suffixIcon: search.isEmpty
+                  ? null
+                  : IconButton(
+                      tooltip: 'Limpar busca',
+                      onPressed: () {
+                        _searchController.clear();
+                        setState(() => search = '');
+                      },
+                      icon: const Icon(Icons.close))),
           onChanged: (value) => setState(() => search = value),
         ),
         const SizedBox(height: 10),
+        _mainCategoryRail(),
+        if (search.isEmpty &&
+            category == 'Todos' &&
+            visibleStores.length > 3) ...[
+          _sectionTitle('Buscas rápidas'),
+          Wrap(spacing: 8, runSpacing: 3, children: [
+            for (final term in ['Pizza', 'Hambúrguer', 'Açaí', 'Farmácia'])
+              ActionChip(
+                avatar: Icon(_discoveryIcon(term),
+                    size: 17, color: GogdelyColors.blue),
+                label: Text(term),
+                onPressed: () => _searchFor(term),
+              ),
+          ]),
+        ],
+        _filterBar(),
         SingleChildScrollView(
             scrollDirection: Axis.horizontal,
             child: Row(children: [
               for (final label in localDemoEnabled
-                  ? ['Todos', 'Restaurantes']
+                  ? [
+                      'Todos',
+                      ..._pilotStores.map((store) => store.category).toSet()
+                    ]
                   : ['Todos', 'Restaurantes', 'Mercado', 'Farmácia'])
                 Padding(
                     padding: const EdgeInsets.only(right: 6),
@@ -1027,23 +1830,39 @@ class _HomeScreenState extends State<HomeScreen> {
                         selected: category == label,
                         onSelected: (_) => setState(() => category = label))),
             ])),
-        _sectionTitle('Resultados'),
-        if (searchResults.isEmpty)
+        _sectionTitle(
+            search.isEmpty ? 'Lojas para explorar' : 'Lojas encontradas'),
+        if (searchResults.isEmpty && productSearchResults.isEmpty)
           const Padding(
               padding: EdgeInsets.all(20),
               child: Text(
-                  'Nenhuma loja encontrada. Tente outra busca ou categoria.')),
+                  'Nenhuma loja ou produto encontrado. Tente outra busca ou categoria.')),
         for (final value in searchResults)
-          DemoStoreCard(value, onTap: () => openStore(value)),
+          DemoStoreCard(value,
+              localPreview: localDemoEnabled,
+              isFavorite: _favoriteStoreIds.contains(value.id),
+              onFavorite: () => _toggleFavorite(value.id),
+              onTap: () => openStore(value)),
+        if (productSearchResults.isNotEmpty) ...[
+          _sectionTitle('Produtos encontrados'),
+          for (final result in productSearchResults)
+            DemoProductTile(result.product,
+                onTap: () => _openSearchProduct(result.store, result.product)),
+        ],
       ]);
 
   Widget _storePage() => _list([
-        DemoPhoto(store.image, height: 190, radius: 14),
+        DemoPhoto(store.image, height: 220, radius: 18),
         const SizedBox(height: 12),
         Text(store.name,
             style: const TextStyle(fontSize: 23, fontWeight: FontWeight.w900)),
         const SizedBox(height: 3),
-        Text('⭐ ${store.rating} · ${store.eta} · Aberto',
+        Text(store.description, style: Theme.of(context).textTheme.bodySmall),
+        const SizedBox(height: 4),
+        Text(
+            localDemoEnabled
+                ? 'Loja piloto · entrega estimada na prévia: ${store.eta}'
+                : '⭐ ${store.rating} · ${store.eta} · Aberto',
             style: Theme.of(context).textTheme.bodySmall),
         if (localDemoEnabled && (_storeRatings?['count'] as int? ?? 0) > 0)
           Text(
@@ -1057,15 +1876,13 @@ class _HomeScreenState extends State<HomeScreen> {
             onChanged: (value) =>
                 setState(() => _storeSearch = value.trim().toLowerCase())),
         const SizedBox(height: 4),
-        Wrap(spacing: 6, children: [
-          for (final label in ['Avaliações', 'Sobre'])
-            ActionChip(
-                label: Text(label),
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                      content: Text('$label: conteúdo fictício da prévia')));
-                }),
-        ]),
+        if (store.products.any((item) => item.badge.isNotEmpty))
+          Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Chip(
+                  avatar: const Icon(Icons.local_offer_outlined,
+                      size: 17, color: GogdelyColors.blue),
+                  label: const Text('Ofertas no cardápio'))),
         _sectionTitle('Cardápio'),
         if (localDemoEnabled && _menuError != null) Text(_menuError!),
         if (localDemoEnabled && store.products.isEmpty)
@@ -1095,7 +1912,7 @@ class _HomeScreenState extends State<HomeScreen> {
       ]);
 
   Widget _productPage() => _list([
-        DemoPhoto(product.image, height: 210, radius: 14),
+        DemoPhoto(product.image, height: 290, radius: 18),
         const SizedBox(height: 12),
         Text(product.name,
             style: const TextStyle(fontSize: 23, fontWeight: FontWeight.w900)),
@@ -1105,8 +1922,7 @@ class _HomeScreenState extends State<HomeScreen> {
         if (product.originalPriceCents != null &&
             product.originalPriceCents! > product.priceCents) ...[
           Row(children: [
-            Text(
-                'De ${formatDemoPrice(product.originalPriceCents!)} por ',
+            Text('De ${formatDemoPrice(product.originalPriceCents!)} por ',
                 style: const TextStyle(
                     decoration: TextDecoration.lineThrough,
                     color: GogdelyColors.mutedLight,
@@ -1121,18 +1937,36 @@ class _HomeScreenState extends State<HomeScreen> {
           ]),
         ] else
           Text(formatDemoPrice(product.priceCents),
-              style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+              style:
+                  const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
         if (localDemoEnabled && product.stockQuantity != null)
           Text('Saldo local: ${product.stockQuantity} unidades'),
-        _sectionTitle('Escolha o tamanho'),
-        Wrap(spacing: 6, children: [
-          for (final value in ['Tradicional', 'Média', 'Grande'])
-            ChoiceChip(
-                label: Text(value),
-                selected: selectedSize == value,
-                onSelected: (_) => setState(() => selectedSize = value)),
-        ]),
-        _sectionTitle('Adicionais'),
+        if (!localDemoEnabled || store.category == 'Restaurantes') ...[
+          _sectionTitle('Escolha o tamanho'),
+          const Text('Escolha 1 opção', style: TextStyle(fontSize: 12)),
+          for (final (value, extraPrice) in [
+            ('Tradicional', 0),
+            ('Média', 400),
+            ('Grande', 800),
+          ])
+            Card(
+                child: ListTile(
+              title: Text(value),
+              subtitle: extraPrice > 0
+                  ? Text('+ ${formatDemoPrice(extraPrice)}')
+                  : null,
+              trailing: Icon(
+                  selectedSize == value
+                      ? Icons.radio_button_checked
+                      : Icons.radio_button_unchecked,
+                  color: selectedSize == value
+                      ? GogdelyColors.blue
+                      : GogdelyColors.mutedLight),
+              onTap: () => setState(() => selectedSize = value),
+            )),
+        ],
+        if (!localDemoEnabled || product.addons.isNotEmpty)
+          _sectionTitle('Adicionais'),
         for (final addon in localDemoEnabled
             ? product.addons
             : const [
@@ -1142,8 +1976,8 @@ class _HomeScreenState extends State<HomeScreen> {
               ])
           CheckboxListTile(
             dense: true,
-            controlAffinity: ListTileControlAffinity.leading,
-            contentPadding: EdgeInsets.zero,
+            controlAffinity: ListTileControlAffinity.trailing,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 8),
             title: Text(addon.name),
             subtitle: Text('+ ${formatDemoPrice(addon.priceCents)}'),
             value: extras.contains(addon.name),
@@ -1161,30 +1995,7 @@ class _HomeScreenState extends State<HomeScreen> {
             decoration: InputDecoration(
                 labelText: 'Observações',
                 hintText: 'Ex.: sem cebola, bem passada...')),
-        const SizedBox(height: 16),
-        Row(children: [
-          IconButton(
-              tooltip: 'Diminuir quantidade',
-              onPressed: productQuantity > 1
-                  ? () => setState(() => productQuantity--)
-                  : null,
-              icon: const Icon(Icons.remove_circle_outline)),
-          Text('$productQuantity',
-              style: const TextStyle(fontWeight: FontWeight.w700)),
-          IconButton(
-              tooltip: 'Aumentar quantidade',
-              onPressed: product.stockQuantity != null &&
-                      productQuantity >= product.stockQuantity!
-                  ? null
-                  : () => setState(() => productQuantity++),
-              icon: const Icon(Icons.add_circle_outline)),
-          const SizedBox(width: 8),
-          Expanded(
-              child: FilledButton(
-                  onPressed: addSelectedProduct,
-                  child: Text(
-                      'Adicionar · ${formatDemoPrice(selectedPrice * productQuantity)}'))),
-        ]),
+        const SizedBox(height: 24),
       ]);
 
   Widget _cartPage() => _list([
@@ -1198,12 +2009,29 @@ class _HomeScreenState extends State<HomeScreen> {
               onPressed: () => open(_Page.home),
               child: const Text('Explorar lojas')),
         ] else ...[
-          Text(cartStore!.name,
-              style:
-                  const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
-          Text('${cartStore!.eta} · valores de demonstração',
-              style: Theme.of(context).textTheme.bodySmall),
-          const SizedBox(height: 8),
+          Row(children: [
+            SizedBox(
+                width: 48,
+                height: 48,
+                child: DemoPhoto(cartStore!.image, height: 48, radius: 24)),
+            const SizedBox(width: 10),
+            Expanded(
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                  Text(cartStore!.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.w800)),
+                  Text('${cartStore!.eta} · valores de demonstração',
+                      style: Theme.of(context).textTheme.bodySmall),
+                ])),
+          ]),
+          TextButton(
+              onPressed: () => openStore(cartStore!),
+              child: const Text('Adicionar mais itens')),
+          _sectionTitle('Itens adicionados'),
           for (final line in cart)
             Card(
                 child: Padding(
@@ -1240,11 +2068,44 @@ class _HomeScreenState extends State<HomeScreen> {
                             icon: const Icon(Icons.remove_circle_outline)),
                       ]),
                     ]))),
+          if (localDemoEnabled) ...[
+            _sectionTitle('Entrega ou retirada'),
+            for (final channel in ['delivery', 'pickup'])
+              Card(
+                  child: ListTile(
+                title: Text(channel == 'pickup'
+                    ? 'Retirar na Burger House'
+                    : 'Entregar no endereço'),
+                subtitle: Text(channel == 'pickup'
+                    ? 'Sem taxa de entrega'
+                    : 'Taxa estimada: ${formatDemoPrice(599)}'),
+                trailing: Icon(
+                    _orderChannel == channel
+                        ? Icons.radio_button_checked
+                        : Icons.radio_button_unchecked,
+                    color: GogdelyColors.blue),
+                onTap: () => setState(() => _orderChannel = channel),
+              )),
+          ],
+          if (!localDemoEnabled || _orderChannel == 'delivery')
+            Card(
+                child: ListTile(
+              leading:
+                  const Icon(Icons.place_outlined, color: GogdelyColors.blue),
+              title: const Text('Endereço de entrega'),
+              subtitle: Text(addressLabel,
+                  maxLines: 2, overflow: TextOverflow.ellipsis),
+              trailing: const Icon(Icons.chevron_right),
+              onTap: () => open(_Page.address),
+            )),
           const SizedBox(height: 9),
-          const TextField(
-              decoration: InputDecoration(
-                  labelText: 'Cupom de desconto',
-                  suffixIcon: Icon(Icons.local_offer_outlined))),
+          Card(
+              child: ListTile(
+            leading: const Icon(Icons.local_offer_outlined,
+                color: GogdelyColors.blue),
+            title: const Text('Cupons'),
+            subtitle: const Text('Nenhum cupom disponível nesta prévia.'),
+          )),
           const SizedBox(height: 14),
           _moneyRow('Subtotal', subtotal),
           _moneyRow(
@@ -1254,10 +2115,6 @@ class _HomeScreenState extends State<HomeScreen> {
               deliveryFee),
           const Divider(),
           _moneyRow('Total estimado', total, bold: true),
-          const SizedBox(height: 16),
-          FilledButton(
-              onPressed: () => open(_Page.checkout),
-              child: const Text('Continuar para checkout')),
           const SizedBox(height: 8),
           const Text('Nenhum pedido ou pagamento real será enviado.',
               textAlign: TextAlign.center, style: TextStyle(fontSize: 11)),
@@ -1303,8 +2160,7 @@ class _HomeScreenState extends State<HomeScreen> {
           _sectionTitle('Quando receber?'),
           for (final immediate in [true, false])
             ListTile(
-              title: Text(
-                  immediate ? 'Assim que possível' : 'Agendar horário'),
+              title: Text(immediate ? 'Assim que possível' : 'Agendar horário'),
               subtitle: Text(immediate
                   ? 'O pedido entra na fila imediatamente'
                   : 'Data e hora futuras; mínimo 30 minutos, máximo 14 dias'),
@@ -1362,7 +2218,7 @@ class _HomeScreenState extends State<HomeScreen> {
                     color: GogdelyColors.blue),
                 onTap: () => setState(() => deliveryLabel = value)),
         ],
-        _sectionTitle('Pagamento demonstrativo'),
+        _sectionTitle('Pagamento'),
         if (localDemoEnabled &&
             !_paymentMethodsLoaded &&
             _paymentMethodsError == null)
@@ -1370,17 +2226,14 @@ class _HomeScreenState extends State<HomeScreen> {
         if (localDemoEnabled && _paymentMethodsError != null)
           Text(_paymentMethodsError!,
               style: const TextStyle(color: Colors.red)),
-        for (final value in localDemoEnabled
-            ? (_paymentMethodsLoaded ? _availablePaymentMethods : <String>[])
-            : ['cash', 'pix', 'card'])
-          ListTile(
-              title: Text(demoPaymentLabel(value)),
-              leading: Icon(
-                  paymentMethod == value
-                      ? Icons.radio_button_checked
-                      : Icons.radio_button_unchecked,
-                  color: GogdelyColors.blue),
-              onTap: () => setState(() => paymentMethod = value)),
+        Card(
+            child: ListTile(
+                leading: const Icon(Icons.account_balance_wallet_outlined,
+                    color: GogdelyColors.blue),
+                title: Text(demoPaymentLabel(paymentMethod)),
+                subtitle: const Text('Escolher forma de pagamento'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: _openPaymentPage)),
         const Text(
             'A forma escolhida será salva no pedido local. Nenhum pagamento será processado ou confirmado.',
             style: TextStyle(fontSize: 11)),
@@ -1396,27 +2249,50 @@ class _HomeScreenState extends State<HomeScreen> {
         const SizedBox(height: 12),
         if (localDemoEnabled && _localError != null)
           Text(_localError!, style: const TextStyle(color: Colors.red)),
-        FilledButton(
-            onPressed: _savingOrder ||
-                    (localDemoEnabled &&
-                        (!_paymentMethodsLoaded ||
-                            _paymentMethodsError != null))
-                ? null
-                : localDemoEnabled
-                    ? _submitLocalOrder
-                    : () => setState(() {
-                          lastOrderTotal = total;
-                          demoOrderCreated = true;
-                          trackingStep = 0;
-                          cart.clear();
-                          cartStore = null;
-                          page = _Page.tracking;
-                        }),
-            child: Text(_savingOrder
-                ? 'Salvando no banco local...'
-                : localDemoEnabled
-                    ? 'Salvar pedido no banco local'
-                    : 'Criar pedido fictício')),
+        const SizedBox(height: 16),
+      ]);
+
+  Widget _paymentPage() => _list([
+        const Text('Escolha como pagar',
+            style: TextStyle(fontSize: 21, fontWeight: FontWeight.w800)),
+        const SizedBox(height: 6),
+        const Text(
+            'A escolha é registrada no pedido local. Este laboratório não cobra, gera Pix ou confirma liquidação.',
+            style: TextStyle(fontSize: 12)),
+        if (cart.isNotEmpty) ...[
+          const SizedBox(height: 18),
+          _moneyRow('Total estimado', total, bold: true),
+        ],
+        _sectionTitle('Formas aceitas pela loja'),
+        if (localDemoEnabled && !_paymentMethodsLoaded)
+          const Center(child: CircularProgressIndicator()),
+        if (_paymentMethodsError != null)
+          Text(_paymentMethodsError!,
+              style: TextStyle(color: Theme.of(context).colorScheme.error)),
+        for (final value in localDemoEnabled
+            ? (_paymentMethodsLoaded ? _availablePaymentMethods : <String>[])
+            : ['cash', 'pix', 'card'])
+          Card(
+              child: ListTile(
+                  title: Text(demoPaymentLabel(value)),
+                  subtitle: Text(value == 'cash'
+                      ? 'Pagamento na entrega, sujeito à loja'
+                      : value == 'pix'
+                          ? 'Pix previsto, sem QR ou cobrança nesta prévia'
+                          : 'Cartão previsto, sem captura de dados nesta prévia'),
+                  leading: Icon(
+                      value == 'pix'
+                          ? Icons.pix
+                          : value == 'card'
+                              ? Icons.credit_card_outlined
+                              : Icons.payments_outlined,
+                      color: GogdelyColors.blue),
+                  trailing: Icon(
+                      paymentMethod == value
+                          ? Icons.radio_button_checked
+                          : Icons.radio_button_unchecked,
+                      color: GogdelyColors.blue),
+                  onTap: () => setState(() => paymentMethod = value))),
       ]);
 
   Widget _savedOrderSummary(DemoOrder order) => Card(
@@ -1508,7 +2384,16 @@ class _HomeScreenState extends State<HomeScreen> {
             const Text(
                 'Pagamento simulado no laboratório local. Nenhuma cobrança real foi feita.',
                 style: TextStyle(fontSize: 12)),
-          if ({'delivered', 'served', 'picked_up'}.contains(_savedOrder!.status) &&
+          if (_savedOrder!.paymentStatus == 'not_processed' &&
+              _savedOrder!.status != 'cancelled')
+            OutlinedButton.icon(
+                onPressed: _savingPayment ? null : _simulateLocalPayment,
+                icon: const Icon(Icons.science_outlined),
+                label: Text(_savingPayment
+                    ? 'Registrando teste...'
+                    : 'Registrar pagamento de teste')),
+          if ({'delivered', 'served', 'picked_up'}
+                  .contains(_savedOrder!.status) &&
               !_ratedOrderIds.contains(_savedOrder!.id))
             OutlinedButton.icon(
                 onPressed: () => _rateOrder(_savedOrder!),
@@ -1612,7 +2497,7 @@ class _HomeScreenState extends State<HomeScreen> {
         const SizedBox(height: 12),
         if ((!localDemoEnabled || _savedOrder?.status != 'cancelled') &&
             (!localDemoEnabled || _savedOrder?.orderChannel != 'pickup'))
-          _demoMap(),
+          _mapEntry(pickLocation: false),
         const SizedBox(height: 16),
         if (!localDemoEnabled)
           FilledButton(
@@ -1629,28 +2514,17 @@ class _HomeScreenState extends State<HomeScreen> {
           ),
       ]);
 
-  Widget _demoMap() => Container(
-        height: 190,
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(16),
-          color: Theme.of(context).colorScheme.surfaceContainerHigh,
+  Widget _mapEntry({required bool pickLocation}) => Card(
+        child: ListTile(
+          leading: const Icon(Icons.map_outlined, color: GogdelyColors.blue),
+          title: Text(pickLocation ? 'Marcar ponto no mapa' : 'Abrir mapa'),
+          subtitle: Text(_selectedLocation == null
+              ? 'Lojas de teste e localização do aparelho, se permitida'
+              : 'Ponto escolhido: ${_selectedLocation!.latitude.toStringAsFixed(5)}, '
+                  '${_selectedLocation!.longitude.toStringAsFixed(5)}'),
+          trailing: const Icon(Icons.chevron_right),
+          onTap: () => _openMap(pickLocation: pickLocation),
         ),
-        child: Stack(children: [
-          Positioned.fill(child: CustomPaint(painter: _RoutePainter())),
-          const Positioned(
-              top: 25,
-              left: 22,
-              child: Icon(Icons.storefront, color: GogdelyColors.blue)),
-          const Positioned(
-              bottom: 22,
-              right: 34,
-              child: Icon(Icons.place, color: GogdelyColors.blue)),
-          const Positioned(
-              bottom: 10,
-              left: 12,
-              child: Text('Mapa ilustrativo · sem GPS',
-                  style: TextStyle(fontSize: 10))),
-        ]),
       );
 
   Widget _ordersPage() => _list([
@@ -1671,8 +2545,9 @@ class _HomeScreenState extends State<HomeScreen> {
                 demoStatusLabel(order.status), () {
               setState(() {
                 _savedOrder = order;
+                _paymentRequestKey = null;
                 lastOrderTotal = order.totalCents;
-                store = [_pilotStore, ...demoStores]
+                store = [..._pilotStores, ...demoStores]
                     .whereType<DemoStore>()
                     .firstWhere((s) => s.id == order.storeId,
                         orElse: () => demoStores.first);
@@ -1767,48 +2642,53 @@ class _HomeScreenState extends State<HomeScreen> {
       ]);
 
   Widget _profilePage() => _list([
-        Card(
-            child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Row(children: [
-                  const CircleAvatar(
-                      radius: 26,
-                      backgroundColor: GogdelyColors.blue,
-                      child: Text('JS',
-                          style: TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.w700))),
-                  const SizedBox(width: 12),
-                  const Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text('João Silva',
-                            style: TextStyle(fontWeight: FontWeight.w800)),
-                        Text('Perfil de demonstração',
-                            style: TextStyle(fontSize: 12)),
-                      ]),
-                ]))),
-        const SizedBox(height: 10),
+        Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surfaceContainerLow,
+              borderRadius: BorderRadius.circular(20)),
+          child: const Row(children: [
+            CircleAvatar(
+                radius: 25,
+                backgroundColor: GogdelyColors.blue,
+                child: Icon(Icons.person_outline, color: Colors.white)),
+            SizedBox(width: 14),
+            Expanded(
+                child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                  Text('Sua área',
+                      style:
+                          TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+                  SizedBox(height: 3),
+                  Text('Explorando o laboratório local',
+                      style: TextStyle(fontSize: 12)),
+                ])),
+          ]),
+        ),
+        _sectionTitle('Pedidos e preferências'),
         _profileTile(
-            Icons.place_outlined, 'Meus endereços', () => open(_Page.address)),
-        _profileTile(Icons.receipt_long_outlined, 'Meus pedidos',
-            () => open(_Page.orders)),
+            Icons.receipt_long_outlined, 'Pedidos', () => open(_Page.orders)),
+        _profileTile(Icons.place_outlined, 'Endereço de entrega',
+            () => open(_Page.address)),
+        _profileTile(Icons.account_balance_wallet_outlined,
+            'Forma de pagamento', _openPaymentPage),
         _profileTile(Icons.notifications_none, 'Notificações',
             () => open(_Page.notifications)),
-        _profileTile(
-            Icons.palette_outlined, 'Aparência', () => open(_Page.settings)),
+        _sectionTitle('Explorar'),
+        _profileTile(Icons.map_outlined, 'Mapa de lojas', () => _openMap()),
         _profileTile(
             Icons.qr_code_scanner,
             'Ler QR de mesa',
             () => Navigator.push(context,
                 MaterialPageRoute<void>(builder: (_) => const QrDemoScreen()))),
+        _sectionTitle('Configurações e suporte'),
+        _profileTile(
+            Icons.palette_outlined, 'Aparência', () => open(_Page.settings)),
         _profileTile(
             Icons.help_outline, 'Ajuda e como pedir', () => open(_Page.help)),
-        _profileTile(Icons.login, 'Ver tela de login', () => open(_Page.login)),
-        _profileTile(Icons.auto_awesome_outlined, 'Ver apresentação',
-            () => open(_Page.splash)),
-        const SizedBox(height: 10),
-        const Text('Dados fictícios; nenhuma conta está conectada.',
+        const SizedBox(height: 12),
+        const Text('Prévia local. Nenhuma conta ou pagamento real conectado.',
             style: TextStyle(fontSize: 11)),
       ]);
 
@@ -1831,13 +2711,14 @@ class _HomeScreenState extends State<HomeScreen> {
         const SizedBox(height: 12),
         _sectionTitle('Preferências (GOG-102 local)'),
         SwitchListTile(
-            secondary: const Icon(Icons.receipt_long, color: GogdelyColors.blue),
+            secondary:
+                const Icon(Icons.receipt_long, color: GogdelyColors.blue),
             title: const Text('Mudanças de status dos meus pedidos'),
             value: _notifyOrderStatus,
             onChanged: (value) => setState(() => _notifyOrderStatus = value)),
         SwitchListTile(
-            secondary:
-                const Icon(Icons.local_offer_outlined, color: GogdelyColors.blue),
+            secondary: const Icon(Icons.local_offer_outlined,
+                color: GogdelyColors.blue),
             title: const Text('Promoções da plataforma e das lojas'),
             subtitle: const Text('Ilustrativo: nenhuma promoção real existe.'),
             value: _notifyPromotions,
@@ -1863,7 +2744,8 @@ class _HomeScreenState extends State<HomeScreen> {
           ])
             Card(
                 child: ListTile(
-              leading: CircleAvatar(child: Icon(icon, color: GogdelyColors.blue)),
+              leading:
+                  CircleAvatar(child: Icon(icon, color: GogdelyColors.blue)),
               title: Text(title),
               subtitle: Text(subtitle),
             )),
@@ -1918,8 +2800,14 @@ class _HomeScreenState extends State<HomeScreen> {
       final batches = await Future.wait(
           [for (final order in recent) _localApi.orderEvents(order.id)]);
       if (!mounted) return;
-      final entries =
-          <({int orderId, String? fromStatus, String toStatus, String actor, String reason, String createdAt})>[];
+      final entries = <({
+        int orderId,
+        String? fromStatus,
+        String toStatus,
+        String actor,
+        String reason,
+        String createdAt
+      })>[];
       for (var i = 0; i < recent.length; i++) {
         for (final event in batches[i]) {
           if (event.fromStatus == event.toStatus && event.reason.isEmpty) {
@@ -1948,66 +2836,82 @@ class _HomeScreenState extends State<HomeScreen> {
         const Text('Onde você quer receber?',
             style: TextStyle(fontSize: 19, fontWeight: FontWeight.w800)),
         const SizedBox(height: 12),
-        const TextField(
-            decoration: InputDecoration(
-                hintText: 'Buscar endereço de demonstração',
-                prefixIcon: Icon(Icons.search))),
-        const SizedBox(height: 12),
-        _demoMap(),
-        const SizedBox(height: 12),
-        Card(
-            child: ListTile(
-          leading: const Icon(Icons.place, color: GogdelyColors.blue),
-          title: Text(addressLabel),
-          subtitle: const Text(
-              'Usado nos pedidos locais de entrega · edite para o próximo pedido'),
-          trailing: const Icon(Icons.edit_outlined),
-          onTap: _editAddress,
-        )),
-        const SizedBox(height: 16),
-        FilledButton(
-            onPressed: () => open(page == _Page.address && cart.isNotEmpty
-                ? _Page.checkout
-                : _Page.home),
-            child: const Text('Confirmar endereço fictício')),
+        _mapEntry(pickLocation: true),
         const SizedBox(height: 8),
-        const Text('Sem geolocalização ou geocodificação real.',
-            textAlign: TextAlign.center, style: TextStyle(fontSize: 11)),
+        const Text('Marque o ponto no mapa e confirme rua e número abaixo.',
+            style: TextStyle(fontSize: 12, color: GogdelyColors.mutedLight)),
+        const SizedBox(height: 12),
+        TextField(
+            controller: _addressStreetController,
+            maxLength: 80,
+            decoration: const InputDecoration(labelText: 'Rua *')),
+        TextField(
+            controller: _addressNumberController,
+            maxLength: 20,
+            decoration: const InputDecoration(labelText: 'Número *')),
+        TextField(
+            controller: _addressComplementController,
+            maxLength: 60,
+            decoration: const InputDecoration(labelText: 'Complemento')),
+        TextField(
+            controller: _addressReferenceController,
+            maxLength: 100,
+            decoration:
+                const InputDecoration(labelText: 'Ponto de referência')),
+        _sectionTitle('Favoritar endereço'),
+        Wrap(spacing: 8, children: [
+          for (final kind in ['Casa', 'Trabalho'])
+            ChoiceChip(
+                label: Text(kind),
+                avatar:
+                    Icon(kind == 'Casa' ? Icons.home : Icons.work, size: 17),
+                selected: _addressKind == kind,
+                onSelected: (_) => setState(() => _addressKind = kind)),
+        ]),
+        const SizedBox(height: 16),
+        const SizedBox(height: 8),
+        const Text(
+            'Endereço digitado salvo neste aparelho no PWA. O ponto do mapa não é salvo nem calcula rotas.',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 11)),
       ]);
 
   /// GOG-015/018 no laboratório: o endereço salvo é usado pelo checkout local.
-  Future<void> _editAddress() async {
-    final controller = TextEditingController(text: addressLabel);
-    final label = await showDialog<String>(
-        context: context,
-        builder: (context) => AlertDialog(
-              title: const Text('Editar endereço de entrega'),
-              content: TextField(
-                  controller: controller,
-                  autofocus: true,
-                  maxLength: 160,
-                  decoration: const InputDecoration(
-                      labelText: 'Endereço completo',
-                      helperText: 'Mínimo 3 caracteres. Simulação local.')),
-              actions: [
-                TextButton(
-                    onPressed: () => Navigator.pop(context),
-                    child: const Text('Voltar')),
-                FilledButton(
-                    onPressed: () {
-                      if (controller.text.trim().length >= 3) {
-                        Navigator.pop(context, controller.text.trim());
-                      }
-                    },
-                    child: const Text('Salvar endereço')),
-              ],
-            ));
-    controller.dispose();
-    if (label == null || label == addressLabel) return;
-    if (!mounted) return;
+  void _saveAddress() {
+    final street = _addressStreetController.text.trim();
+    final number = _addressNumberController.text.trim();
+    if (street.length < 3 || number.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Informe a rua e o número para salvar o endereço.')));
+      return;
+    }
+    final complement = _addressComplementController.text.trim();
+    final reference = _addressReferenceController.text.trim();
+    final label = [
+      '$street, $number',
+      if (complement.isNotEmpty) complement,
+      if (reference.isNotEmpty) 'Referência: $reference',
+    ].join(' · ');
+    if (label.length > 160) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+          content: Text('Encurte o endereço para até 160 caracteres.')));
+      return;
+    }
+    _savedPreferences = ClientPreferences(
+      street: street,
+      number: number,
+      complement: complement,
+      reference: reference,
+      kind: _addressKind,
+      favoriteStoreIds: _favoriteStoreIds,
+    );
     setState(() => addressLabel = label);
-    ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Endereço salvo para os próximos pedidos.')));
+    final persisted = _preferencesStore.write(_savedPreferences.encode());
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        content: Text(persisted
+            ? 'Endereço salvo neste aparelho para os próximos pedidos.'
+            : 'Endereço mantido apenas nesta sessão; armazenamento indisponível.')));
+    open(_addressReturnPage);
   }
 
   /// GOG-136 local: onboarding e ajuda do laboratório.
@@ -2224,36 +3128,4 @@ class _HomeScreenState extends State<HomeScreen> {
                   style: TextStyle(color: Colors.white))),
         ]),
       ));
-}
-
-class _RoutePainter extends CustomPainter {
-  @override
-  void paint(Canvas canvas, Size size) {
-    final street = Paint()
-      ..color = Colors.white.withValues(alpha: .75)
-      ..strokeWidth = 7
-      ..strokeCap = StrokeCap.round;
-    for (var i = 0; i < 6; i++) {
-      final x = size.width * (i + 1) / 7;
-      canvas.drawLine(Offset(x, 0), Offset(x - 35, size.height), street);
-    }
-    for (var i = 0; i < 4; i++) {
-      final y = size.height * (i + 1) / 5;
-      canvas.drawLine(Offset(0, y), Offset(size.width, y + 13), street);
-    }
-    final route = Path()
-      ..moveTo(25, 35)
-      ..lineTo(size.width * .35, 55)
-      ..lineTo(size.width * .47, 112)
-      ..lineTo(size.width * .8, 150);
-    canvas.drawPath(
-        route,
-        Paint()
-          ..color = GogdelyColors.blue
-          ..strokeWidth = 5
-          ..style = PaintingStyle.stroke);
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

@@ -9,6 +9,94 @@ from fastapi.testclient import TestClient
 from gogdely_api.main import app
 
 
+def test_multistore_catalog_and_delivery_stay_store_scoped(tmp_path, monkeypatch):
+    monkeypatch.setenv("GOGDELY_ENV", "local")
+    monkeypatch.setenv("GOGDELY_LOCAL_DEMO", "1")
+    monkeypatch.setenv("GOGDELY_LOCAL_DB", str(tmp_path / "multistore.sqlite3"))
+    client = TestClient(app)
+    catalog = client.get("/api/v1/local/catalog")
+    assert catalog.status_code == 200
+    stores = catalog.json()
+    assert len(stores) == 10
+    assert all(len(store["products"]) >= 3 for store in stores)
+    assert {store["category"] for store in stores} >= {
+        "Restaurantes", "Mercado", "Farmácia", "Pet Shop"}
+    assert client.get("/api/v1/local/stores/unknown/menu").status_code == 404
+    pizza = next(store for store in stores if store["id"] == "pizzaria-napoli")
+    product = pizza["products"][0]
+    payload = {"request_key": str(uuid4()), "store_id": pizza["id"],
+               "address_label": "Endereço fictício, 12", "payment_method": "cash",
+               "items": [{"product_id": product["product_id"], "quantity": 1}]}
+    assert client.post("/api/v1/local/orders", json={
+        **payload, "items": [{"product_id": "x-tudo", "quantity": 1}]
+    }).status_code == 422
+    created = client.post("/api/v1/local/orders", json=payload)
+    assert created.status_code == 201
+    order = created.json()
+    assert order["store_id"] == pizza["id"]
+    assert order["items"][0]["unit_cents"] == product["effective_price_cents"]
+    assert client.get("/api/v1/local/orders?store_id=burger-house").json() == []
+    assert len(client.get("/api/v1/local/orders?store_id=pizzaria-napoli").json()) == 1
+    status_url = f"/api/v1/local/orders/{order['id']}/status"
+    for status in ("preparing", "ready"):
+        assert client.patch(status_url, json={"status": status,
+                                              "actor": "management"}).status_code == 200
+    assert client.post(f"/api/v1/local/orders/{order['id']}/dispatch-internal").status_code == 200
+    assert client.patch(status_url, json={"status": "in_delivery",
+                                          "actor": "courier"}).status_code == 200
+    assert client.patch(status_url, json={"status": "delivered", "actor": "courier",
+                                          "delivery_code": order["delivery_code"]}).status_code == 200
+
+
+def test_other_store_menu_edit_updates_only_its_catalog(tmp_path, monkeypatch):
+    monkeypatch.setenv("GOGDELY_ENV", "local")
+    monkeypatch.setenv("GOGDELY_LOCAL_DEMO", "1")
+    monkeypatch.setenv("GOGDELY_LOCAL_DB", str(tmp_path / "menu-multistore.sqlite3"))
+    client = TestClient(app)
+    base = "/api/v1/local/stores/padaria-aurora/menu"
+    original = client.get(base).json()[0]
+    burger_before = client.get("/api/v1/local/stores/burger-house/menu").json()
+    updated = client.put(f"{base}/{original['product_id']}", json={
+        **original, "name": "Pão da manhã", "price_cents": 1390,
+        "expected_updated_at": original["updated_at"]}).json()
+    assert updated["name"] == "Pão da manhã"
+    assert updated["price_cents"] == 1390
+    assert client.put(f"{base}/{original['product_id']}", json={
+        **original, "name": "Edição atrasada",
+        "expected_updated_at": original["updated_at"]}).status_code == 409
+    assert client.get("/api/v1/local/stores/burger-house/menu").json() == burger_before
+    events = client.get("/api/v1/local/stores/padaria-aurora/menu-events").json()
+    assert events[0]["action"] == "updated" and events[0]["store_id"] == "padaria-aurora"
+
+
+def test_other_store_stock_is_reserved_and_restored(tmp_path, monkeypatch):
+    monkeypatch.setenv("GOGDELY_ENV", "local")
+    monkeypatch.setenv("GOGDELY_LOCAL_DEMO", "1")
+    monkeypatch.setenv("GOGDELY_LOCAL_DB", str(tmp_path / "stock-multistore.sqlite3"))
+    client = TestClient(app)
+    menu_url = "/api/v1/local/stores/padaria-aurora/menu"
+    original = client.get(menu_url).json()[0]
+    changed = client.put(f"{menu_url}/{original['product_id']}", json={
+        **original, "stock_quantity": 2,
+        "expected_updated_at": original["updated_at"]})
+    assert changed.status_code == 200
+    payload = {"request_key": str(uuid4()), "store_id": "padaria-aurora",
+               "address_label": "Rua fictícia, 1", "payment_method": "cash",
+               "items": [{"product_id": original["product_id"], "quantity": 2}]}
+    order = client.post("/api/v1/local/orders", json=payload)
+    assert order.status_code == 201
+    product = next(item for item in client.get(menu_url).json()
+                   if item["product_id"] == original["product_id"])
+    assert product["stock_quantity"] == 0 and not product["orderable"]
+    assert client.post("/api/v1/local/orders", json={
+        **payload, "request_key": str(uuid4())}).status_code in {409, 422}
+    assert client.post(f"/api/v1/local/orders/{order.json()['id']}/cancel",
+                       json={"actor": "customer", "reason": "Teste de reposição"}).status_code == 200
+    product = next(item for item in client.get(menu_url).json()
+                   if item["product_id"] == original["product_id"])
+    assert product["stock_quantity"] == 2 and product["orderable"]
+
+
 def test_local_order_round_trip_and_role_boundaries(tmp_path, monkeypatch):
     monkeypatch.setenv("GOGDELY_ENV", "local")
     monkeypatch.setenv("GOGDELY_LOCAL_DEMO", "1")

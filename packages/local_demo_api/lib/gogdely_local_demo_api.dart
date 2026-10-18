@@ -1,16 +1,19 @@
 import 'dart:convert';
 import 'dart:math';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 const localDemoEnabled = bool.fromEnvironment('GOGDELY_LOCAL_API');
-// One-store local pilot. Other demo stores and their saved orders remain intact.
+// Burger House retains pilot-only stock and table features; the catalog spans more local stores.
 const localDemoPilotStoreId = 'burger-house';
 const localDemoRefreshInterval = Duration(seconds: 3);
 const _overrideUrl = String.fromEnvironment('GOGDELY_LOCAL_API_URL');
 
 String get localDemoBaseUrl {
   if (_overrideUrl.isNotEmpty) return _overrideUrl;
+  const localPwa = bool.fromEnvironment('GOGDELY_LOCAL_PWA');
+  if (kIsWeb && localPwa) return Uri.base.origin;
   return 'http://127.0.0.1:8765';
 }
 
@@ -401,8 +404,13 @@ class LocalDemoApi {
         .toList();
   }
 
-  Future<List<DemoMenuItem>> menu() async {
-    final result = await _request('GET', '/stores/burger-house/menu') as List;
+  Future<List<Map<String, dynamic>>> catalog() async {
+    final result = await _request('GET', '/catalog') as List;
+    return result.cast<Map<String, dynamic>>();
+  }
+
+  Future<List<DemoMenuItem>> menu({String storeId = localDemoPilotStoreId}) async {
+    final result = await _request('GET', '/stores/$storeId/menu') as List;
     return result
         .map((entry) => DemoMenuItem.fromJson(entry as Map<String, dynamic>))
         .toList();
@@ -451,9 +459,9 @@ class LocalDemoApi {
     },
   ) as Map<String, dynamic>;
 
-  Future<List<Map<String, dynamic>>> menuEvents() async {
+  Future<List<Map<String, dynamic>>> menuEvents({String storeId = localDemoPilotStoreId}) async {
     final result =
-        await _request('GET', '/stores/burger-house/menu-events') as List;
+        await _request('GET', '/stores/$storeId/menu-events') as List;
     return result.cast<Map<String, dynamic>>();
   }
 
@@ -468,10 +476,10 @@ class LocalDemoApi {
         .toList();
   }
 
-  Future<List<String>> paymentMethods() async {
+  Future<List<String>> paymentMethods({String storeId = localDemoPilotStoreId}) async {
     final result = await _request(
       'GET',
-      '/stores/burger-house/payment-methods',
+      '/stores/$storeId/payment-methods',
     ) as Map<String, dynamic>;
     return (result['methods'] as List).cast<String>();
   }
@@ -488,10 +496,11 @@ class LocalDemoApi {
   Future<DemoMenuItem> saveMenuItem(
     DemoMenuItem item, {
     required bool create,
+    String storeId = localDemoPilotStoreId,
   }) async => DemoMenuItem.fromJson(
     await _request(
       create ? 'POST' : 'PUT',
-      '/stores/burger-house/menu${create ? '' : '/${item.productId}'}',
+      '/stores/$storeId/menu${create ? '' : '/${item.productId}'}',
       body: item.toJson(),
     ) as Map<String, dynamic>,
   );
