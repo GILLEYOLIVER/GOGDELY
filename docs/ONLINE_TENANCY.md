@@ -27,7 +27,9 @@ compradores e entregadores não usam esses vínculos.
   na homologação e realizar backup da base.
 - Revisar a migration por pessoa independente e executar testes negativos
   reais com dois usuários, duas empresas e filiais distintas, incluindo
-  ausência de vínculo, papel `staff`, `manager` e `owner`.
+  ausência de vínculo, papel `staff`, `manager` e `owner`. O roteiro transacional
+  em `database/verification/0002_membership_read_policies.sql` prepara os
+  testes de banco sem persistir empresas/filiais fictícias.
 - Confirmar que a conexão do Render pode assumir `authenticated` dentro de
   uma transação e que `auth.uid()` lê o sujeito configurado.
 - Configurar `GOGDELY_SUPABASE_URL`, a chave publicável e

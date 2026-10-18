@@ -6,12 +6,17 @@ As migrações numeradas são a fonte do esquema PostgreSQL. O projeto `GOGDELY 
 
 1. `0001_cloud_foundation.sql`: esquema `gogdely`, empresas, filiais, vínculos de usuários, cardápio, pedidos e eventos. Todas as tabelas têm `tenant_id`, RLS habilitado e forçado. Não há políticas nem privilégios para `anon`/`authenticated`: o acesso de aplicação fica bloqueado até a autorização da API ser implementada e revisada.
 2. Criar o bucket privado de imagens com a configuração versionada em `database/storage/gogdely-menu-testes.json`, pelo painel ou API oficial de Storage. Não escrever diretamente na tabela interna `storage.buckets`.
+3. `0002_membership_read_policies.sql`: concede apenas leitura autenticada das quatro tabelas de vínculo. Ainda requer revisão independente, backup, comparação do esquema instalado e validação no projeto de homologação antes de aplicação.
 
-Cada arquivo deve ser executado uma única vez, em ordem, no projeto de **testes** e registrado no controle de migrações quando o fluxo automatizado for adotado. Antes de aplicar, confirmar projeto, ambiente, versão do Git e revisão técnica. Não executar no banco de outro produto nem em produção.
+Cada arquivo deve ser executado uma única vez, em ordem, no projeto de **homologação** e registrado no controle de migrações quando o fluxo automatizado for adotado. Antes de aplicar, confirmar projeto, ambiente, versão do Git e revisão técnica. Não executar no banco de outro produto nem em produção.
 
 ## Verificação
 
-Após aplicar a migração e criar o bucket, execute `database/verification/0001_foundation.sql` no SQL Editor do mesmo projeto. Ele falha se faltar tabela, se RLS estiver desligado, se uma política aparecer ou se o bucket não for privado. Nenhum dado de cliente é necessário.
+Após aplicar a `0001` e criar o bucket, **antes da `0002`**, execute `database/verification/0001_foundation.sql` no SQL Editor do mesmo projeto. Ele falha se faltar tabela, se RLS estiver desligado, se uma política aparecer ou se o bucket não for privado. Nenhum dado de cliente é necessário.
+
+Depois da `0002`, crie **duas identidades descartáveis** pelo Supabase Auth de homologação com os e-mails reservados `gogdely-rls-a@example.invalid` e `gogdely-rls-b@example.invalid`, sem envio de convite. Execute `database/verification/0002_membership_read_policies.sql` no SQL Editor como operador administrativo do projeto. O script cria empresas e filiais fictícias em uma transação, testa leitura como `manager`, `staff`, `owner` e `anon`, escrita negada e revogação imediata, e termina com `ROLLBACK`. Se falhar, não trate a migration como homologada; registre a mensagem e confirme que a transação foi revertida. Remova as duas identidades descartáveis pelo Auth após a verificação. Não execute este teste em produção ou em projeto compartilhado.
+
+O arquivo de verificação é uma preparação revisável, **não evidência de execução no Supabase**. Registre projeto, SHA, data, revisor, resultado e testes negativos da API antes de afirmar isolamento completo.
 
 ## Reversão em testes
 
