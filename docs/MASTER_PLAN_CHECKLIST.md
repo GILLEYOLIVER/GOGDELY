@@ -94,7 +94,7 @@ Este checklist controla a conclusão de cada decisão sem alterar o texto aprova
 - [ ] **GOG-022** — Avaliações de estabelecimentos e entregas.
 - [ ] **GOG-023** — Etapas detalhadas e mapa do entregador em tempo real.
 - [ ] **GOG-024** — Pedidos imediatos e agendados.
-- [ ] **GOG-025** — Cadastro de empresas com aprovação.
+- [ ] **GOG-025** — Cadastro de empresas com aprovação. Fluxo de convite e ativação proposto em [ADR-0002](adr/0002-store-onboarding-invitations.md); implementação, revisão e homologação pendentes.
 - [ ] **GOG-026** — Pedido por QR de mesa entra na fila com número, data e hora.
 
 ### Gestão
