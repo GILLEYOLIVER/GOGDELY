@@ -1,6 +1,6 @@
-# GOGDELY API — bootstrap local
+# GOGDELY API — bootstrap
 
-**Estado:** API executável mínima; não há autenticação, empresas, banco, pedidos, pagamentos ou deploy.
+**Estado:** API executável mínima em ambiente local e de testes. O Render de testes expõe `/health` e `/api/v1/info`; ainda não há autenticação, conexão ao banco, pedidos ou pagamentos.
 
 ## Requisitos
 Python 3.11+ no Windows.
@@ -22,4 +22,4 @@ Abrir `http://127.0.0.1:8000/docs` ou `http://127.0.0.1:8000/health`.
 ```
 
 ## Limites
-Não utilizar em produção. O health check não verifica banco ou serviços externos. Dependências exigem lockfile e revisão antes de produção. Multiempresa virá em tarefa própria com RLS e autorização no servidor.
+Não utilizar em produção. O health check não verifica banco ou serviços externos. A migração inicial do esquema Supabase é bloqueada por RLS e não concede acesso à API. Dependências exigem lockfile e revisão antes de produção. A autorização multiempresa no servidor virá em tarefa própria.

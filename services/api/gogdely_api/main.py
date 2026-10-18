@@ -1,7 +1,6 @@
-"""GOGDELY API bootstrap.
+"""GOGDELY API bootstrap, without business or payment operations."""
+import os
 
-No external services, database, payments or production integration.
-"""
 from fastapi import FastAPI
 from pydantic import BaseModel
 
@@ -21,4 +20,8 @@ def health() -> HealthResponse:
 
 @app.get("/api/v1/info", tags=["system"])
 def api_info() -> dict[str, str]:
-    return {"name": "GOGDELY", "api_version": "v1", "environment": "local-demo"}
+    return {
+        "name": "GOGDELY",
+        "api_version": "v1",
+        "environment": os.environ.get("GOGDELY_ENV", "local-demo"),
+    }

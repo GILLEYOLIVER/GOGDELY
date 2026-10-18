@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "gogdely-api"
 version = "0.1.0"
-description = "GOGDELY API bootstrap — local only"
+description = "GOGDELY API bootstrap for local and isolated test environments"
 requires-python = ">=3.11"
 dependencies = ["fastapi>=0.115,<1", "uvicorn>=0.30,<1", "pydantic>=2,<3"]
 
