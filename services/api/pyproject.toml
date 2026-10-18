@@ -16,5 +16,8 @@ test = ["pytest>=8,<10", "httpx>=0.27,<1"]
 where = ["."]
 include = ["gogdely_api*"]
 
+[tool.setuptools.package-data]
+gogdely_api = ["certs/*.crt"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]

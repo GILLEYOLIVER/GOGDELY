@@ -2,6 +2,7 @@
 
 import logging
 import ssl
+from importlib.resources import files
 from urllib.parse import unquote, urlsplit
 
 import pg8000.native
@@ -31,13 +32,17 @@ def foundation_ready(database_url: str) -> bool:
 
     connection = None
     try:
+        tls = ssl.create_default_context()
+        tls.load_verify_locations(
+            cafile=str(files("gogdely_api").joinpath("certs", "prod-ca-2021.crt"))
+        )
         connection = pg8000.native.Connection(
             user=unquote(parsed.username),
             password=unquote(parsed.password),
             host=parsed.hostname,
             port=port,
             database=database,
-            ssl_context=ssl.create_default_context(),
+            ssl_context=tls,
             timeout=3,
             application_name="gogdely-readiness",
         )
