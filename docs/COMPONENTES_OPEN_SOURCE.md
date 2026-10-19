@@ -11,5 +11,11 @@
 | PDV/estoque | https://github.com/opensourcepos/opensourcepos | MIT | Referência; não copiar o sistema inteiro |
 | Banco offline | https://github.com/isar/isar | Apache-2.0 | Apenas candidato; comparar alternativas conforme GOG-078 |
 
+## Componentes rejeitados
+
+| Módulo | Projeto | Decisão e motivo |
+|---|---|---|
+| Pagamentos (GOG-055/056/057/068) | https://github.com/youpi-pg/YouPI-PG | **Rejeitado pelo proprietário em 19/10/2026. Não instalar, incorporar, copiar código nem usar como integração do GOGDELY.** O projeto atende UPI/INR, não Pix/BRL; confirma créditos por observação de SMS/notificações/e-mails bancários e não oferece o split de comissões exigido. O `package.json` declara licença `Commercial`, enquanto o arquivo `LICENSE` referido pelo README não estava disponível na revisão. Avaliação do commit `6c82cfb`; a seleção do provedor Pix continua pendente. |
+
 ## Admissão de componentes
 Verificar licença e avisos da versão exata, manutenção, vulnerabilidades, compatibilidade, protótipo isolado, testes e aprovação técnica antes da incorporação. Registrar origem, versão e obrigações de atribuição.
