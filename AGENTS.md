@@ -9,10 +9,10 @@ Escopo: todo o repositório. Documento Mestre v1.0, decisões GOG-001 a GOG-141,
 
 ## Regras obrigatórias
 - Conventional Commits com referência GOG-xxx; PR com evidências, testes, documentação, riscos e plano de reversão.
-- PR requer revisão técnica independente e aprovação do proprietário. Agentes só podem integrar alterações **já aprovadas** após verificações; nunca aprovar em nome de humanos.
+- PR registra escopo, evidências, riscos e reversão. Revisão técnica independente não é condição para merge. Quando o proprietário autorizar a entrega, o agente pode concluir a PR, fazer merge e publicar sem solicitar nova aprovação para cada etapa.
 - Mudança arquitetural requer proposta e aprovação prévia. Sem deploy de produção ou serviço pago sem autorização expressa.
 - Não expor segredos ou dados reais; ambientes local, testes, homologação e produção separados.
-- Testar unitário, integração, UI, segurança e fluxos críticos conforme escopo; não declarar teste não executado.
+- Testar unitário, integração, UI, segurança e fluxos críticos conforme escopo, salvo dispensa expressa do proprietário para a entrega. Registrar os testes dispensados; nunca declarar teste não executado.
 - Migrations versionadas/revisadas; nenhum acesso cruzado entre empresas ou filiais.
 - Dependências externas só após revisão de licença, segurança, manutenção e compatibilidade.
 - Atualizar documentação e manter rastreabilidade.
@@ -26,4 +26,4 @@ Escopo: todo o repositório. Documento Mestre v1.0, decisões GOG-001 a GOG-141,
 - Simulador de iPhone no Windows é prévia responsiva, não iOS Simulator nativo.
 
 ## Conclusão de tarefas
-Requisito rastreado, testes e evidências, documentação, licença e segurança revisadas, PR aprovado. Nenhum merge ou deploy implícito.
+Requisito rastreado, evidências e limites documentados, licença e segurança verificadas conforme escopo. Após autorização de entrega do proprietário, concluir merge e deploy de homologação e conferir o resultado sem nova parada para revisão independente. Migração de banco exige backup recuperável e confirmação do esquema de destino; não publicar uma funcionalidade dependente de migração pendente como operacional. Produção e serviços pagos seguem sujeitos à autorização expressa.

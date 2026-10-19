@@ -11,7 +11,7 @@
 5. GPS e mapa: o Cliente local agora solicita a posição sob toque e mostra tiles OpenStreetMap, mas as lojas têm coordenadas fictícias e o ponto escolhido fica só na sessão. Ainda faltam geocodificação, rota, localização do entregador, consentimento/retenção de produção, privacidade e provedor contratado para escala.
 6. Impressão: protocolos ESC/POS, USB/rede/Bluetooth, filas e compatibilidade desktop.
 7. Testes: metas de cobertura, carga, RPO/RTO e evidências de homologação.
-8. Governança: revisores técnicos, proteção de branches e política de aprovação.
+8. Governança: proteção de branches e registro de autorização da entrega; revisão técnica independente opcional conforme alteração GOG-107.
 9. Identidade: paleta, tipografia, marca e disponibilidade jurídica.
 10. Supabase/Render: orçamento, limites, alertas e arquitetura operacional.
 

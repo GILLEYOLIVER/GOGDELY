@@ -13,8 +13,8 @@
 
 ## Gates ainda abertos
 
-- Aprovação técnica independente dos PRs #32 e #34; aprovação do proprietário para a release concreta.
-- Migração aplicada e verificada no projeto isolado `GOGDELY Homologação`; `/ready` confirmou a conexão no Render em 18/10/2026. Ainda faltam revisão independente e registro no histórico de migrações do Supabase CLI. A credencial PostgreSQL permanece somente no Render, nunca no Git ou PWA.
+- A entrega autorizada pode ser integrada e publicada em homologação sem revisão independente ou nova aprovação por PR (alteração GOG-107 de 18/10/2026).
+- Migração aplicada e verificada no projeto isolado `GOGDELY Homologação`; `/ready` confirmou a conexão no Render em 18/10/2026. Ainda falta registro no histórico de migrações do Supabase CLI. A credencial PostgreSQL permanece somente no Render, nunca no Git ou PWA.
 - API real de catálogo, pedidos, transições e entrega; Auth/RLS e testes de isolamento; pagamentos por provedor, fiscal, privacidade de GPS, backups e restauração.
 - Suporte Web da Gestão, builds reproduzíveis dos três PWAs, URLs públicas, validação em dispositivo e política de atualização; revisão de licenças das imagens e dependências.
 - Serviço de produção separado do `gogdely-api-homologacao`; plano de custo e disponibilidade aceitos pelo proprietário.

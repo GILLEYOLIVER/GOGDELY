@@ -11,6 +11,6 @@
 - [ ] Fluxos e cenários de teste são rastreáveis a GOG-xxx.
 - [ ] Compatibilidade Windows/macOS/Android/iOS/Web será validada por plataforma.
 - [ ] Custos, deploy e produção continuam bloqueados sem aprovação específica.
-- [ ] Revisão técnica independente e aprovação do proprietário registradas.
+- [ ] Entrega autorizada pelo proprietário e evidências/limites registrados; revisão técnica independente opcional (GOG-107 atualizado).
 
 **Não marcar como concluído sem evidência.**

@@ -22,7 +22,7 @@ Marketplace nacional multissetorial e multiempresa. Delivery, retirada e consumo
 Flutter; FastAPI no Render; Supabase PostgreSQL/Auth/Storage/Realtime; banco compartilhado com tenant_id, RLS e autorização no backend. Operação offline avançada, banco local pendente de escolha por testes. Ambientes local, testes, homologação e produção isolados.
 
 ## Governança
-Repositório privado GILLEYOLIVER/GOGDELY; main/develop/feature/*; PR com revisão técnica e aprovação do proprietário; agentes podem integrar apenas mudanças já aprovadas. Sem contratação ou deploy de produção sem autorização explícita.
+Repositório privado GILLEYOLIVER/GOGDELY; main/develop/feature/*; PR rastreável com evidências e reversão. A alteração GOG-106/107/110/116/117 no controle de decisões dispensa revisão independente como condição de merge e permite concluir a entrega autorizada até o deploy de homologação. Sem contratação ou deploy de produção sem autorização explícita.
 
 ## Documentos relacionados
 - [Decisões](DECISIONS.md)
