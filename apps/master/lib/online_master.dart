@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -17,6 +18,8 @@ class _OnlineMasterShellState extends State<OnlineMasterShell> {
   static const _api = String.fromEnvironment('GOGDELY_API_BASE_URL');
   static const _blue = Color(0xFF2563EB);
   static const _graphite = Color(0xFF151B2B);
+  static const _muted = Color(0xFF64748B);
+  static const _border = Color(0xFFDCE4F2);
 
   final _email = TextEditingController();
   final _password = TextEditingController();
@@ -26,12 +29,14 @@ class _OnlineMasterShellState extends State<OnlineMasterShell> {
   Factor? _factor;
   Map<String, dynamic>? _overview;
   List<Map<String, dynamic>> _companies = [];
+  List<Map<String, dynamic>> _audit = [];
   String? _error;
   String? _notice;
   bool _loading = true;
   bool _busy = false;
   bool _eligible = false;
   bool _mfaReady = false;
+  bool _adminReady = false;
   int _tab = 0;
 
   @override
@@ -48,22 +53,45 @@ class _OnlineMasterShellState extends State<OnlineMasterShell> {
     super.dispose();
   }
 
-  Future<dynamic> _request(String path) async {
+  Future<dynamic> _request(String path, {String method = 'GET', Object? body}) async {
     final token = _client?.auth.currentSession?.accessToken;
     if (token == null) throw const _MasterFailure('Entre novamente para continuar.');
-    final response = await http.get(Uri.parse('$_api$path'), headers: {
+    final headers = {
       'accept': 'application/json', 'authorization': 'Bearer $token',
-    }).timeout(const Duration(seconds: 15));
+      if (body != null) 'content-type': 'application/json',
+    };
+    final uri = Uri.parse('$_api$path');
+    final response = await (method == 'POST'
+        ? http.post(uri, headers: headers, body: jsonEncode(body))
+        : method == 'PATCH'
+            ? http.patch(uri, headers: headers, body: jsonEncode(body))
+            : http.get(uri, headers: headers)).timeout(const Duration(seconds: 15));
     if (response.statusCode == 403) {
       throw const _MasterFailure('Esta conta não tem permissão para acessar o Master ou precisa confirmar o segundo fator.');
     }
     if (response.statusCode == 503) {
-      throw const _MasterFailure('O acesso Master ainda não foi configurado no servidor.');
+      throw const _MasterFailure('A administração ainda não está disponível no banco de homologação.');
     }
-    if (response.statusCode != 200) {
-      throw _MasterFailure('Não foi possível carregar os dados (${response.statusCode}).');
+    if (response.statusCode == 409) {
+      final detail = (jsonDecode(response.body) as Map<String, dynamic>)['detail'];
+      throw _MasterFailure(detail == 'An owner must accept the invitation before activation'
+          ? 'A empresa precisa de um responsável vinculado antes de ser ativada.'
+          : 'Este endereço ou pedido já existe. Atualize a lista antes de tentar novamente.');
     }
-    return jsonDecode(response.body);
+    if (response.statusCode != 200 && response.statusCode != 201) {
+      throw _MasterFailure('Não foi possível concluir a operação (${response.statusCode}).');
+    }
+    return response.body.isEmpty ? null : jsonDecode(response.body);
+  }
+
+  String _requestId() {
+    final random = Random.secure();
+    final bytes = List<int>.generate(16, (_) => random.nextInt(256));
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    final hex = bytes.map((byte) => byte.toRadixString(16).padLeft(2, '0')).join();
+    return '${hex.substring(0, 8)}-${hex.substring(8, 12)}-'
+        '${hex.substring(12, 16)}-${hex.substring(16, 20)}-${hex.substring(20)}';
   }
 
   Future<void> _bootstrap() async {
@@ -176,6 +204,17 @@ class _OnlineMasterShellState extends State<OnlineMasterShell> {
           _companies = (results[1] as List<dynamic>).cast<Map<String, dynamic>>();
         });
       }
+      try {
+        final events = await _request('/api/v1/master/audit') as List<dynamic>;
+        if (mounted) {
+          setState(() {
+            _audit = events.cast<Map<String, dynamic>>();
+            _adminReady = true;
+          });
+        }
+      } on _MasterFailure {
+        if (mounted) setState(() { _audit = []; _adminReady = false; });
+      }
     } catch (error) {
       if (mounted) {
         setState(() => _error = error is _MasterFailure
@@ -192,8 +231,192 @@ class _OnlineMasterShellState extends State<OnlineMasterShell> {
       setState(() {
         _eligible = false; _mfaReady = false; _enrollment = null;
         _factor = null; _overview = null; _companies = []; _error = null;
+        _audit = []; _adminReady = false; _notice = null;
       });
     }
+  }
+
+  Future<void> _createCompany() async {
+    if (!_adminReady || _busy) return;
+    final name = TextEditingController();
+    final branch = TextEditingController();
+    final slug = TextEditingController();
+    final reason = TextEditingController();
+    try {
+      final confirmed = await showDialog<bool>(context: context, builder: (dialog) =>
+        AlertDialog(title: const Text('Nova empresa'),
+          content: SizedBox(width: 420, child: SingleChildScrollView(child: Column(
+            mainAxisSize: MainAxisSize.min, children: [
+              const Text('A empresa começa como rascunho e não aparece para clientes.'),
+              const SizedBox(height: 16),
+              TextField(controller: name, decoration: const InputDecoration(labelText: 'Nome da empresa')),
+              const SizedBox(height: 12),
+              TextField(controller: branch, decoration: const InputDecoration(labelText: 'Nome da primeira loja')),
+              const SizedBox(height: 12),
+              TextField(controller: slug, decoration: const InputDecoration(labelText: 'Endereço da loja', hintText: 'minha-loja')),
+              const SizedBox(height: 12),
+              TextField(controller: reason, maxLines: 2, decoration: const InputDecoration(labelText: 'Motivo do cadastro')),
+            ],
+          ))),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialog, false), child: const Text('Cancelar')),
+            FilledButton(onPressed: () => Navigator.pop(dialog, true), child: const Text('Criar rascunho')),
+          ],
+        ));
+      if (confirmed != true || !mounted) return;
+      if (name.text.trim().length < 2 || branch.text.trim().length < 2 ||
+          !RegExp(r'^[a-z0-9]+(?:-[a-z0-9]+)*$').hasMatch(slug.text.trim()) ||
+          slug.text.trim().length < 3 || reason.text.trim().length < 8) {
+        setState(() => _error = 'Informe empresa, loja, endereço válido e motivo com pelo menos 8 caracteres.');
+        return;
+      }
+      await _runCommand(() => _request('/api/v1/master/companies', method: 'POST', body: {
+        'request_id': _requestId(), 'name': name.text.trim(),
+        'branch_name': branch.text.trim(), 'slug': slug.text.trim(),
+        'reason': reason.text.trim(),
+      }), 'Empresa criada como rascunho.');
+    } finally {
+      name.dispose(); branch.dispose(); slug.dispose(); reason.dispose();
+    }
+  }
+
+  Future<void> _runCommand(Future<dynamic> Function() command, String success) async {
+    setState(() { _busy = true; _error = null; _notice = null; });
+    try {
+      await command();
+      if (mounted) setState(() => _notice = success);
+      await _refresh();
+    } catch (error) {
+      if (mounted) {
+        setState(() => _error = error is _MasterFailure
+            ? error.message : 'Não foi possível concluir a alteração.');
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _changeStatus(Map<String, dynamic> company) async {
+    if (!_adminReady || _busy) return;
+    final id = company['tenant_id'] as String;
+    final current = company['status'] as String;
+    final next = current == 'active' ? 'suspended' : 'active';
+    final reason = TextEditingController();
+    try {
+      final confirmed = await showDialog<bool>(context: context, builder: (dialog) =>
+        AlertDialog(title: Text(next == 'active' ? 'Ativar empresa?' : 'Suspender empresa?'),
+          content: Column(mainAxisSize: MainAxisSize.min, children: [
+            Text('${company['name']} · ${next == 'active' ? 'ficará visível quando houver loja e cardápio ativos.' : 'deixará de aparecer no catálogo público.'}'),
+            const SizedBox(height: 16),
+            TextField(controller: reason, maxLines: 2,
+              decoration: const InputDecoration(labelText: 'Motivo obrigatório')),
+          ]),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialog, false), child: const Text('Cancelar')),
+            FilledButton(onPressed: () => Navigator.pop(dialog, true),
+              child: Text(next == 'active' ? 'Ativar' : 'Suspender')),
+          ],
+        ));
+      if (confirmed != true || !mounted) return;
+      if (reason.text.trim().length < 8) {
+        setState(() => _error = 'Informe um motivo com pelo menos 8 caracteres.');
+        return;
+      }
+      await _runCommand(() => _request('/api/v1/master/companies/$id/status',
+        method: 'PATCH', body: {'request_id': _requestId(), 'status': next,
+          'reason': reason.text.trim()}),
+        next == 'active' ? 'Empresa ativada.' : 'Empresa suspensa.');
+    } finally { reason.dispose(); }
+  }
+
+  Future<void> _linkOwner(Map<String, dynamic> company) async {
+    if (!_adminReady || _busy) return;
+    final id = company['tenant_id'] as String;
+    final email = TextEditingController();
+    final reason = TextEditingController();
+    try {
+      final confirmed = await showDialog<bool>(context: context, builder: (dialog) =>
+        AlertDialog(title: const Text('Vincular responsável'),
+          content: SizedBox(width: 420, child: Column(mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Use uma conta Supabase já confirmada. Esta ação não envia convite.'),
+              const SizedBox(height: 16),
+              TextField(controller: email, keyboardType: TextInputType.emailAddress,
+                decoration: const InputDecoration(labelText: 'E-mail da conta confirmada')),
+              const SizedBox(height: 12),
+              TextField(controller: reason, maxLines: 2,
+                decoration: const InputDecoration(labelText: 'Motivo do vínculo')),
+            ],
+          )),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialog, false), child: const Text('Cancelar')),
+            FilledButton(onPressed: () => Navigator.pop(dialog, true), child: const Text('Vincular')),
+          ],
+        ));
+      if (confirmed != true || !mounted) return;
+      if (!RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(email.text.trim()) ||
+          reason.text.trim().length < 8) {
+        setState(() => _error = 'Informe um e-mail válido e um motivo com pelo menos 8 caracteres.');
+        return;
+      }
+      await _runCommand(() => _request('/api/v1/master/companies/$id/owner',
+        method: 'POST', body: {'request_id': _requestId(),
+          'email': email.text.trim().toLowerCase(), 'reason': reason.text.trim()}),
+        'Responsável vinculado à empresa.');
+    } finally { email.dispose(); reason.dispose(); }
+  }
+
+  Future<void> _editCommission(Map<String, dynamic> company) async {
+    if (!_adminReady || _busy) return;
+    final id = company['tenant_id'] as String;
+    Map<String, dynamic> policy;
+    try {
+      policy = (await _request('/api/v1/master/companies/$id/commission')) as Map<String, dynamic>;
+    } catch (error) {
+      if (mounted) {
+        setState(() => _error = error is _MasterFailure
+            ? error.message : 'Não foi possível consultar a comissão.');
+      }
+      return;
+    }
+    if (!mounted) return;
+    final percentage = TextEditingController(text: '${policy['percentage']}');
+    final reason = TextEditingController();
+    var enabled = policy['enabled'] == true;
+    try {
+      final confirmed = await showDialog<bool>(context: context, builder: (dialog) =>
+        StatefulBuilder(builder: (context, redraw) => AlertDialog(
+          title: Text('Comissão · ${company['name']}'),
+          content: SizedBox(width: 420, child: SingleChildScrollView(child: Column(
+            mainAxisSize: MainAxisSize.min, children: [
+              const Text('Esta configuração não realiza cobrança ou repasse automático.'),
+              const SizedBox(height: 12),
+              SwitchListTile(title: const Text('Configuração ativa'), value: enabled,
+                onChanged: (value) => redraw(() => enabled = value)),
+              TextField(controller: percentage, keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                decoration: const InputDecoration(labelText: 'Percentual sobre produtos', suffixText: '%')),
+              const SizedBox(height: 12),
+              TextField(controller: reason, maxLines: 2,
+                decoration: const InputDecoration(labelText: 'Motivo da alteração')),
+            ],
+          ))),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialog, false), child: const Text('Cancelar')),
+            FilledButton(onPressed: () => Navigator.pop(dialog, true), child: const Text('Salvar política')),
+          ],
+        )));
+      if (confirmed != true || !mounted) return;
+      final rate = double.tryParse(percentage.text.trim().replaceAll(',', '.'));
+      if (rate == null || rate < 0 || rate > 100 ||
+          (rate * 100).roundToDouble() != rate * 100 || reason.text.trim().length < 8) {
+        setState(() => _error = 'Informe percentual entre 0 e 100 com até duas casas e um motivo válido.');
+        return;
+      }
+      await _runCommand(() => _request('/api/v1/master/companies/$id/commission',
+        method: 'PATCH', body: {'request_id': _requestId(), 'enabled': enabled,
+          'percentage': rate.toStringAsFixed(2), 'reason': reason.text.trim()}),
+        'Política de comissão salva e registrada na auditoria.');
+    } finally { percentage.dispose(); reason.dispose(); }
   }
 
   @override
@@ -203,7 +426,9 @@ class _OnlineMasterShellState extends State<OnlineMasterShell> {
     return Scaffold(
       backgroundColor: const Color(0xFFF2F5FF),
       appBar: AppBar(
-        backgroundColor: _graphite, foregroundColor: Colors.white,
+        backgroundColor: Colors.white, foregroundColor: _graphite,
+        surfaceTintColor: Colors.white, scrolledUnderElevation: 0,
+        shape: const Border(bottom: BorderSide(color: _border)),
         title: const Text('gogdely.  Master', style: TextStyle(fontWeight: FontWeight.w800)),
         actions: [
           if (_mfaReady) IconButton(onPressed: _busy ? null : _refresh,
@@ -226,13 +451,17 @@ class _OnlineMasterShellState extends State<OnlineMasterShell> {
                     'Esta conta ainda não foi habilitada para administrar a plataforma.'),
                 if (signedIn && _eligible && !_mfaReady) _mfaCard(),
                 if (signedIn && _mfaReady) ...[
-                  _heading('Visão da plataforma', 'Dados reais da homologação · acesso protegido por MFA'),
+                  _heading('Sua plataforma', 'GOGDELY Homologação · sessão protegida'),
                   const SizedBox(height: 20),
                   if (_overview != null) _metrics(width),
                   const SizedBox(height: 24),
+                  if (!_adminReady) ...[
+                    _message('A visão geral está disponível. Ações de cadastro e gestão aguardam a migração auditada do banco.'),
+                    const SizedBox(height: 12),
+                  ],
                   SegmentedButton<int>(segments: const [
                     ButtonSegment(value: 0, label: Text('Empresas'), icon: Icon(Icons.storefront_outlined)),
-                    ButtonSegment(value: 1, label: Text('Governança'), icon: Icon(Icons.security_outlined)),
+                    ButtonSegment(value: 1, label: Text('Auditoria'), icon: Icon(Icons.history_outlined)),
                   ], selected: {_tab}, onSelectionChanged: (values) =>
                       setState(() => _tab = values.first)),
                   const SizedBox(height: 18),
@@ -242,12 +471,22 @@ class _OnlineMasterShellState extends State<OnlineMasterShell> {
     );
   }
 
-  Widget _message(String text, {bool error = false}) => Card(
-    color: error ? const Color(0xFFFFE7E7) : const Color(0xFFE4EDFF),
+  Widget _message(String text, {bool error = false}) => Container(
+    margin: const EdgeInsets.only(bottom: 12),
+    decoration: BoxDecoration(
+      color: error ? const Color(0xFFFFE8E7) : const Color(0xFFE8F0FF),
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: error ? const Color(0xFFF7B8B4) : const Color(0xFFBED4FF)),
+    ),
     child: Padding(padding: const EdgeInsets.all(16), child: Row(children: [
       Icon(error ? Icons.error_outline : Icons.info_outline,
           color: error ? const Color(0xFFB42318) : _blue),
-      const SizedBox(width: 12), Expanded(child: Text(text)),
+      const SizedBox(width: 12),
+      Expanded(child: Text(text, style: const TextStyle(color: _graphite))),
+      if (!error) IconButton(
+        onPressed: () => setState(() => _notice = null),
+        tooltip: 'Dispensar aviso', icon: const Icon(Icons.close, color: _graphite),
+      ),
     ])),
   );
 
@@ -334,13 +573,21 @@ class _OnlineMasterShellState extends State<OnlineMasterShell> {
     ];
     return Wrap(spacing: 14, runSpacing: 14, children: [
       for (final value in values) SizedBox(width: width < 660 ?
-          (width - 50) / 2 : 250, child: Card(child: Padding(
+          (width - 50) / 2 : 250, child: Container(
+            decoration: BoxDecoration(color: Colors.white,
+              border: Border.all(color: _border),
+              borderRadius: BorderRadius.circular(20)),
+            child: Padding(
             padding: const EdgeInsets.all(20), child: Column(
               crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Icon(value.$3, color: _blue), const SizedBox(height: 15),
+                Container(padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(color: const Color(0xFFE8F0FF),
+                    borderRadius: BorderRadius.circular(12)),
+                  child: Icon(value.$3, color: _blue)),
+                const SizedBox(height: 18),
                 Text('${value.$2}', style: const TextStyle(fontSize: 29,
                     fontWeight: FontWeight.w800, color: _graphite)),
-                Text(value.$1, style: const TextStyle(color: Color(0xFF64748B))),
+                Text(value.$1, style: const TextStyle(color: _muted)),
               ],
             )))),
     ]);
@@ -349,35 +596,75 @@ class _OnlineMasterShellState extends State<OnlineMasterShell> {
   Widget _companyList() => Card(child: Padding(
     padding: const EdgeInsets.all(20), child: Column(
       crossAxisAlignment: CrossAxisAlignment.start, children: [
-        const Text('Empresas cadastradas', style: TextStyle(fontSize: 20,
-            fontWeight: FontWeight.w700)),
-        const SizedBox(height: 6),
-        const Text('Somente leitura até o fluxo de convites e ações auditadas estar pronto.'),
+        Row(children: [
+          const Expanded(child: Text('Empresas', style: TextStyle(fontSize: 21,
+              fontWeight: FontWeight.w800, color: _graphite))),
+          FilledButton.icon(onPressed: _adminReady && !_busy ? _createCompany : null,
+            icon: const Icon(Icons.add), label: const Text('Nova')),
+        ]),
+        const SizedBox(height: 8),
+        Text('${_companies.length} cadastrada(s) · gestão com MFA e motivo registrado',
+          style: const TextStyle(color: _muted)),
         const Divider(height: 30),
-        if (_companies.isEmpty) const Padding(padding: EdgeInsets.symmetric(vertical: 28),
-            child: Center(child: Text('Nenhuma empresa cadastrada nesta homologação.'))),
-        for (final company in _companies) ListTile(
-          contentPadding: EdgeInsets.zero,
-          leading: const CircleAvatar(backgroundColor: Color(0xFFE4EDFF),
-              child: Icon(Icons.storefront_outlined, color: _blue)),
-          title: Text(company['name'] as String),
-          subtitle: Text('${company['branches']} filial(is) · ${company['status']}'),
-          trailing: const Icon(Icons.chevron_right),
-        ),
+        if (_companies.isEmpty) const Padding(padding: EdgeInsets.symmetric(vertical: 32),
+            child: Center(child: Column(children: [
+              Icon(Icons.storefront_outlined, size: 42, color: _muted),
+              SizedBox(height: 10),
+              Text('Nenhuma empresa cadastrada nesta homologação.'),
+            ]))),
+        for (final company in _companies) ...[
+          ListTile(
+            contentPadding: EdgeInsets.zero,
+            leading: const CircleAvatar(backgroundColor: Color(0xFFE8F0FF),
+                child: Icon(Icons.storefront_outlined, color: _blue)),
+            title: Text(company['name'] as String,
+                style: const TextStyle(fontWeight: FontWeight.w700)),
+            subtitle: Text('${company['branches']} filial(is) · ${company['owners']} responsável(is) · ${company['status']}'),
+            trailing: _adminReady ? PopupMenuButton<String>(
+              tooltip: 'Gerenciar empresa',
+              onSelected: (action) {
+                if (action == 'owner') { _linkOwner(company); }
+                else if (action == 'status') { _changeStatus(company); }
+                else { _editCommission(company); }
+              },
+              itemBuilder: (_) => [
+                PopupMenuItem(value: 'owner',
+                  enabled: company['status'] == 'draft' && (company['owners'] as int? ?? 0) == 0,
+                  child: const Text('Vincular responsável')),
+                PopupMenuItem(value: 'status',
+                  enabled: company['status'] == 'active' || (company['owners'] as int? ?? 0) > 0,
+                  child: Text(company['status'] == 'active'
+                    ? 'Suspender empresa' : 'Ativar (após vincular responsável)')),
+                const PopupMenuItem(value: 'commission', child: Text('Configurar comissão')),
+              ],
+            ) : null,
+          ),
+          const Divider(height: 1),
+        ],
       ],
     )),
   );
 
   Widget _governance() => Card(child: Padding(
     padding: const EdgeInsets.all(22), child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start, children: const [
-        Text('Acesso protegido', style: TextStyle(fontSize: 20,
-            fontWeight: FontWeight.w700)),
-        SizedBox(height: 10),
-        Text('Este painel exige conta autorizada e autenticação em dois fatores.'),
-        SizedBox(height: 18),
-        Text('Convites, suspensão de empresas e comissões exigem registro de auditoria, '
-            'configuração de envio de e-mail e validação do banco antes de serem habilitados.'),
+      crossAxisAlignment: CrossAxisAlignment.start, children: [
+        const Text('Histórico de alterações', style: TextStyle(fontSize: 21,
+            fontWeight: FontWeight.w800, color: _graphite)),
+        const SizedBox(height: 8),
+        const Text('Ações administrativas registradas no banco com operador, motivo e horário.',
+            style: TextStyle(color: _muted)),
+        const Divider(height: 30),
+        if (!_adminReady) const Text('Auditoria aguardando a migração do banco.'),
+        if (_adminReady && _audit.isEmpty) const Text('Nenhuma alteração registrada.'),
+        for (final event in _audit) ListTile(
+          contentPadding: EdgeInsets.zero,
+          leading: const Icon(Icons.verified_user_outlined, color: _blue),
+          title: Text(event['action'] as String),
+          subtitle: Text('${event['reason']} · ${event['created_at']}'),
+        ),
+        const SizedBox(height: 16),
+        const Text('Convites por e-mail e cobrança automática permanecem indisponíveis até a configuração do envio e do provedor financeiro.',
+          style: TextStyle(color: _muted)),
       ],
     )),
   );

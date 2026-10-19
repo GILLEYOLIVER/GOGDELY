@@ -33,6 +33,7 @@ class MasterCompany(BaseModel):
     name: str
     status: str
     branches: int
+    owners: int
     created_at: str
 
 
@@ -112,11 +113,15 @@ def overview(_: AuthenticatedUser = Depends(require_master)) -> MasterOverview:
 def companies(_: AuthenticatedUser = Depends(require_master)) -> list[MasterCompany]:
     rows = _read(
         """SELECT t.tenant_id::text, t.name, t.status,
-                  count(b.branch_id)::int, t.created_at::text
+                  count(b.branch_id)::int,
+                  (SELECT count(*)::int FROM gogdely.memberships m
+                   WHERE m.tenant_id = t.tenant_id AND m.role = 'owner'),
+                  t.created_at::text
            FROM gogdely.tenants AS t
            LEFT JOIN gogdely.branches AS b ON b.tenant_id = t.tenant_id
            GROUP BY t.tenant_id, t.name, t.status, t.created_at
            ORDER BY t.created_at DESC, t.name LIMIT 200"""
     )
     return [MasterCompany(tenant_id=UUID(row[0]), name=row[1], status=row[2],
-                          branches=row[3], created_at=row[4]) for row in rows]
+                          branches=row[3], owners=row[4], created_at=row[5])
+            for row in rows]

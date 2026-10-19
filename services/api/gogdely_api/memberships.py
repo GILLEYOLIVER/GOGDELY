@@ -93,7 +93,7 @@ def authorized_branch(user_id: UUID, tenant_id: UUID, branch_id: UUID) -> Author
            JOIN gogdely.tenants AS t ON t.tenant_id = b.tenant_id
            JOIN gogdely.memberships AS m ON m.tenant_id = b.tenant_id
            WHERE b.tenant_id = :tenant AND b.branch_id = :branch
-             AND m.user_id = :subject
+             AND m.user_id = :subject AND t.status <> 'suspended'
            LIMIT 1""",
         tenant=str(tenant_id), branch=str(branch_id),
     )

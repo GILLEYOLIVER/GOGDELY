@@ -83,7 +83,7 @@ def test_authorized_owner_reads_real_overview_and_companies(monkeypatch):
     def fake_read(statement):
         queries.append(statement)
         if "LEFT JOIN" in statement:
-            return [[str(OTHER), "Loja Exemplo", "active", 2, "2026-10-19"]]
+            return [[str(OTHER), "Loja Exemplo", "active", 2, 1, "2026-10-19"]]
         return [[1, 1, 2, 3]]
 
     monkeypatch.setattr(master_online, "_read", fake_read)

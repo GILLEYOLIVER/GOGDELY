@@ -30,6 +30,12 @@
 
 Não considerar pendências como decisões resolvidas.
 
+## Master hospedado — GOG-004/025/082/096
+
+- A branch `feature/gog-096-master-management` prepara comandos auditados para empresas e política de comissão e corrige a paleta instalada no iPhone. A migration `0006` ainda requer backup, comparação e aplicação no Supabase de homologação antes de habilitar os botões. Ver [escopo e reversão](MASTER_ONLINE_ADMIN.md).
+- O projeto Auth redirecionou a confirmação do proprietário para `localhost:3000` no iPhone. A conta foi confirmada, mas a URL de retorno e a allowlist precisam apontar para os PWAs hospedados antes de convidar terceiros. O SMTP padrão também bloqueia endereços fora da organização; convites externos permanecem indisponíveis.
+- O vínculo manual aceita somente conta Auth já confirmada. Não substitui convite, recuperação de senha, aprovação de alteração crítica nem homologação de multiempresa.
+
 ## PWA local do Cliente — validação parcial (14/10/2026)
 
 - O proprietário confirmou tela inicial, criação e acompanhamento de pedido fictício no celular pelo hotspot. Os logs registraram HTTP 200 para PWA/cardápio, HTTP 201 ao criar o pedido #7 e HTTP 200 no acompanhamento a partir do IP do aparelho. Ainda falta homologação visual formal e validação dos demais aplicativos no dispositivo.

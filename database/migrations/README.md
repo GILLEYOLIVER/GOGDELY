@@ -7,6 +7,7 @@ As migrações numeradas são a fonte do esquema PostgreSQL. O projeto `GOGDELY 
 1. `0001_cloud_foundation.sql`: esquema `gogdely`, empresas, filiais, vínculos de usuários, cardápio, pedidos e eventos. Todas as tabelas têm `tenant_id`, RLS habilitado e forçado. Não há políticas nem privilégios para `anon`/`authenticated`: o acesso de aplicação fica bloqueado até a autorização da API ser implementada e revisada.
 2. Criar o bucket privado de imagens com a configuração versionada em `database/storage/gogdely-menu-testes.json`, pelo painel ou API oficial de Storage. Não escrever diretamente na tabela interna `storage.buckets`.
 3. `0002_membership_read_policies.sql`: concede apenas leitura autenticada das quatro tabelas de vínculo. Ainda requer revisão independente, backup, comparação do esquema instalado e validação no projeto de homologação antes de aplicação.
+4. `0006_master_administration.sql`: cria configuração de comissão e auditoria imutável do Master. Depende da fundação `0001`; aplicar somente após backup verificável, comparação do esquema e revisão do plano de reversão. O cadastro nasce em `draft`, o vínculo de responsável exige conta de e-mail já confirmada, e a ativação exige ao menos um owner. Não envia convites nem processa pagamentos.
 
 Cada arquivo deve ser executado uma única vez, em ordem, no projeto de **homologação** e registrado no controle de migrações quando o fluxo automatizado for adotado. Antes de aplicar, confirmar projeto, ambiente, versão do Git e revisão técnica. Não executar no banco de outro produto nem em produção.
 
