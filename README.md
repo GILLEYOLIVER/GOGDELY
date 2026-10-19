@@ -2,7 +2,7 @@
 
 Plataforma marketplace multiempresa e multissetorial (planejamento v1.0).
 
-**Estado:** protótipos locais de Cliente, Gestão e Entregador executáveis no Windows. Um fluxo opt-in de pedidos fictícios usa a API FastAPI e SQLite isolado no computador para testar gravação e leitura entre os três aplicativos. Nenhum app está homologado. Há uma API bootstrap gratuita de testes no Render, ainda sem conexão com o piloto SQLite ou o Supabase; não houve serviço pago nem deploy de produção.
+**Estado:** protótipos locais e prévias web em homologação. O laboratório de pedidos fictícios usa SQLite isolado no computador. A API de homologação usa a fundação PostgreSQL separada no Supabase; a publicação web inclui Cliente, Gestão, Entregador e Master. O Master hospedado oferece entrada protegida e visão de empresas somente para leitura, condicionada à conta autorizada com MFA. Convites, ações administrativas e operação comercial real ainda não estão liberados. Nenhum app está homologado para produção.
 
 ## Aplicativos previstos
 - Cliente — Android e iOS (Flutter)

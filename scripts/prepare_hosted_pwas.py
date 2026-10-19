@@ -1,16 +1,17 @@
-"""Package three isolated, fictional PWA previews for one static host."""
+"""Package hosted GOGDELY PWAs for one static host."""
 
 import json
 import shutil
 from pathlib import Path
 
 
-APPS = ("cliente", "gestao", "entregador")
+APPS = ("cliente", "gestao", "entregador", "master")
 ROOT = Path(__file__).resolve().parents[1]
 HOSTED_NAMES = {
     "cliente": ("GOGDELY Cliente — homologação", "GOGDELY Cliente"),
     "gestao": ("GOGDELY Gestão — homologação", "GOGDELY Gestão"),
     "entregador": ("GOGDELY Entregador — homologação", "GOGDELY Entrega"),
+    "master": ("GOGDELY Master — homologação", "GOGDELY Master"),
 }
 
 
@@ -47,6 +48,7 @@ def prepare(root: Path = ROOT) -> Path:
 <body><h1>GOGDELY · Homologação</h1><p>Prévias com dados fictícios. Não faça pedidos reais.</p>
 <a href="/cliente/">Cliente</a><a href="/gestao/">Gestão da loja</a>
 <a href="/entregador/">Entregador</a>
+<a href="/master/">Master</a>
 <p><a href="/THIRD_PARTY_NOTICES.md">Créditos e licenças</a></p></body></html>\n""",
         encoding="utf-8",
     )

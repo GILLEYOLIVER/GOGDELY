@@ -5,6 +5,10 @@ import 'package:flutter/material.dart';
 import 'package:gogdely_design_system/gogdely_design_system.dart';
 import 'package:gogdely_local_demo_api/gogdely_local_demo_api.dart';
 
+import 'online_master.dart';
+
+const hostedMaster = bool.fromEnvironment('GOGDELY_HOSTED_MASTER');
+
 void main() => runApp(const MasterApp());
 
 /// GOG-010/096: Master prototype. Local laboratory only: no real
@@ -26,8 +30,10 @@ class _MasterAppState extends State<MasterApp> {
         theme: gogdelyTheme(Brightness.light),
         darkTheme: gogdelyTheme(Brightness.dark),
         themeMode: mode,
-        home: MasterHome(
-            themeMode: mode, onThemeChanged: (value) => setState(() => mode = value)),
+        home: hostedMaster
+            ? const OnlineMasterShell()
+            : MasterHome(
+                themeMode: mode, onThemeChanged: (value) => setState(() => mode = value)),
       );
 }
 
