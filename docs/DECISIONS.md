@@ -135,18 +135,18 @@ Registro de 141 respostas e observações das dez etapas. Estes itens não equiv
 
 - **GOG-104** — Repositório privado GILLEYOLIVER.
 - **GOG-105** — Branches main, develop, feature/*.
-- **GOG-106** — IA pode integrar alterações já aprovadas automaticamente.
-- **GOG-107** — PR com revisão técnica e aprovação do proprietário.
+- **GOG-106** — IA pode integrar e publicar em homologação uma entrega solicitada pelo proprietário após concluir os ajustes e registrar as evidências; não precisa de nova aprovação por PR.
+- **GOG-107** — PR rastreável com escopo, riscos e reversão; revisão técnica independente opcional, sem bloquear merge ou deploy.
 - **GOG-108** — Mudança arquitetural requer proposta e aprovação prévia.
 - **GOG-109** — Conventional Commits com ID do requisito.
-- **GOG-110** — Testes unitários, integração, interface, segurança e fluxos críticos.
+- **GOG-110** — Testes unitários, integração, interface, segurança e fluxos críticos conforme escopo, salvo dispensa expressa para uma entrega identificada; registrar os testes não executados.
 - **GOG-111** — Meta de cobertura e validação de fluxos críticos.
 - **GOG-112** — Lint, análise estática, dependências e arquitetura.
 - **GOG-113** — Documentação em toda funcionalidade.
 - **GOG-114** — Migrations versionadas e revisadas.
 - **GOG-115** — Segredos nunca no Git; ambientes separados.
-- **GOG-116** — Homologação automática após merge em develop e testes.
-- **GOG-117** — Produção com autorização do proprietário e validação independente.
+- **GOG-116** — Após merge em develop, publicar em homologação e conferir o estado do deploy; a dispensa expressa de testes não impede essa publicação.
+- **GOG-117** — Produção com autorização expressa do proprietário para a publicação, compatibilidade de banco confirmada e plano de reversão; revisão independente opcional.
 - **GOG-118** — Plano de reversão para toda publicação.
 - **GOG-119** — Nenhum serviço pago sem aprovação.
 - **GOG-120** — GitHub Issues/Projects e roadmap.
@@ -178,3 +178,27 @@ Registro de 141 respostas e observações das dez etapas. Estes itens não equiv
 ## Controle de alterações
 
 Mudanças de decisões aprovadas exigem proposta, justificativa, impacto e aprovação do proprietário. Manter histórico de revisão e rastreabilidade de GOG-xxx para issues, testes e PRs.
+
+### Alteração de governança aprovada pelo proprietário em 18/10/2026
+
+**Proposta e justificativa:** retirar a revisão técnica independente e a
+aprovação repetida por PR como bloqueios de merge/deploy. O proprietário pediu
+que a entrega autorizada avance até merge e publicação após os ajustes.
+
+**Histórico:** GOG-106 permitia integração apenas de alterações já aprovadas;
+GOG-107 exigia revisão independente e aprovação do proprietário por PR;
+GOG-110 exigia testes; GOG-116 condicionava homologação a merge e testes;
+GOG-117 exigia validação independente para produção. As formulações acima
+substituem essas condições a partir desta deliberação, sem apagar o registro.
+
+**Escopo da dispensa de testes:** o proprietário dispensou novos testes para a
+entrega atual que inclui as PRs #43 e #44 e esta alteração de governança.
+Testes já executados permanecem como evidência; os não executados devem ser
+registrados sem alegar aprovação. Em entregas futuras, dispensas de testes
+precisam ser expressas para o respectivo escopo.
+
+**Impacto e limites:** o agente pode fazer merge e deploy de homologação sem
+esperar uma revisão humana separada. Isso não transforma código sem migração
+aplicada em funcionalidade ativa, nem dispensa backup recuperável, compatibilidade
+do esquema, isolamento entre empresas, proteção de segredos ou plano de
+reversão. Produção e serviços pagos ainda exigem autorização expressa.

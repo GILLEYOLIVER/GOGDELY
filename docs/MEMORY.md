@@ -25,7 +25,7 @@ Este arquivo é memória **documental versionada**, não armazenamento de senhas
 - GPS em tempo real; entregadores próprios e da plataforma; parceiros externos após primeira versão.
 - Identidade moderna/minimalista; paleta ainda não definida; temas claro/escuro/automático; acessibilidade avançada.
 - VS Code F5 e laboratório de prévia iPhone/Android/tablet com cenários fictícios.
-- Git main/develop/feature/*; PR com revisão técnica e aprovação do proprietário; custos e produção somente com autorização.
+- Git main/develop/feature/*; PR rastreável, revisão independente opcional e entrega autorizada seguindo até merge/deploy de homologação; custos e produção somente com autorização expressa. Ver alteração GOG-106/107/110/116/117 em DECISIONS.md.
 
 ## Pendências prioritárias
 Provedor de pagamento; emissão fiscal nacional; banco offline e conflitos; licenças e compatibilidade de componentes; metas de cobertura/carga/RPO/RTO; proteção de branches; identidade visual; privacidade de GPS; orçamento Supabase/Render.

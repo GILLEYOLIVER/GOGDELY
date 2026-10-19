@@ -194,18 +194,18 @@ Este checklist controla a conclusão de cada decisão sem alterar o texto aprova
 
 - [ ] **GOG-104** — Repositório privado GILLEYOLIVER.
 - [ ] **GOG-105** — Branches main, develop, feature/*.
-- [ ] **GOG-106** — IA pode integrar alterações já aprovadas automaticamente.
-- [ ] **GOG-107** — PR com revisão técnica e aprovação do proprietário.
+- [ ] **GOG-106** — Integração e deploy de homologação após conclusão de entrega solicitada pelo proprietário, sem nova aprovação por PR; alteração registrada em [DECISIONS.md](DECISIONS.md#alteração-de-governança-aprovada-pelo-proprietário-em-18102026).
+- [ ] **GOG-107** — PR rastreável; revisão técnica independente opcional, sem bloquear merge ou deploy.
 - [ ] **GOG-108** — Mudança arquitetural requer proposta e aprovação prévia.
 - [ ] **GOG-109** — Conventional Commits com ID do requisito.
-- [ ] **GOG-110** — Testes unitários, integração, interface, segurança e fluxos críticos.
+- [ ] **GOG-110** — Testes conforme escopo; dispensa expressa documentada para a entrega atual.
 - [ ] **GOG-111** — Meta de cobertura e validação de fluxos críticos.
 - [ ] **GOG-112** — Lint, análise estática, dependências e arquitetura.
 - [ ] **GOG-113** — Documentação em toda funcionalidade.
 - [ ] **GOG-114** — Migrations versionadas e revisadas.
 - [ ] **GOG-115** — Segredos nunca no Git; ambientes separados.
-- [ ] **GOG-116** — Homologação automática após merge em develop e testes.
-- [ ] **GOG-117** — Produção com autorização do proprietário e validação independente.
+- [ ] **GOG-116** — Deploy de homologação após merge em develop, com confirmação do estado; testes podem ser dispensados expressamente.
+- [ ] **GOG-117** — Produção com autorização expressa, compatibilidade de banco e plano de reversão; revisão independente opcional.
 - [ ] **GOG-118** — Plano de reversão para toda publicação.
 - [ ] **GOG-119** — Nenhum serviço pago sem aprovação.
 - [ ] **GOG-120** — GitHub Issues/Projects e roadmap.
@@ -237,4 +237,4 @@ Este checklist controla a conclusão de cada decisão sem alterar o texto aprova
 
 ## Como dar baixa
 
-Ao concluir uma entrega, registrar aqui a data, o escopo real, o arquivo/PR de evidência e a validação executada. Marcar somente o código cujo requisito inteiro foi atendido; entregas parciais ficam nos marcos do piloto ou em nota sob o item. Nenhum marco local substitui revisão técnica, aprovação, homologação, merge ou deploy.
+Ao concluir uma entrega, registrar aqui a data, o escopo real, o arquivo/PR de evidência e a validação executada ou dispensada. Marcar somente o código cujo requisito inteiro foi atendido; entregas parciais ficam nos marcos do piloto ou em nota sob o item. Nenhum marco local substitui homologação, merge ou deploy; revisão independente deixou de ser bloqueio conforme a alteração GOG-107.

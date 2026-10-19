@@ -15,7 +15,7 @@ FastAPI no Render; Supabase PostgreSQL/Auth/Storage/Realtime; isolamento por ten
 
 ## Governança
 - `main`: base estável; `develop`: integração; `feature/*`: alterações isoladas.
-- PR com revisão técnica e aprovação do proprietário; agentes de IA não podem contornar verificações.
+- PR rastreável com evidências e reversão; revisão técnica independente é opcional. Entrega autorizada pelo proprietário segue até merge e deploy de homologação após os ajustes e verificações aplicáveis.
 - Sem serviços pagos ou produção sem autorização expressa.
 - O Documento Mestre GOGDELY v1.0 e seus 141 registros são a referência de planejamento.
 

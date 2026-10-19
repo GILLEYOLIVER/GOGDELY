@@ -31,8 +31,7 @@ integrado com SQLite continua restrito ao laboratório local.
 
 ## Pendências para produção
 
-Revisão técnica independente e aprovação do proprietário nos PRs de PWA e
-backend; integração segura com autenticação, autorização por empresa, catálogo,
+Integração segura com autenticação, autorização por empresa, catálogo,
 pedidos, pagamentos e entrega; migrações versionadas/revisadas; licenças e
 política de mapas; testes de segurança, UI, fluxos críticos e dispositivos.
 O deploy estático não aplica migrações ao Supabase automaticamente.

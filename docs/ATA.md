@@ -30,3 +30,11 @@ Importar integralmente os 141 registros ao repositório; revisar licenças, segu
 
 ## Limites de autorização
 Aprovação documental e inicialização do repositório não autorizam serviços pagos, produção, alterações em dados reais ou integração de componentes sem revisão. Nenhuma aplicação é declarada pronta.
+
+## Adendo de 18/10/2026 — GOG-106/107/110/116/117
+
+O proprietário autorizou concluir entregas até merge e deploy após os ajustes,
+retirou a revisão técnica independente como condição de integração e dispensou
+novos testes para a entrega atual das PRs #43 e #44. Este adendo não altera as
+deliberações históricas acima; a nova redação e seus limites estão no
+[controle de alterações](DECISIONS.md#alteração-de-governança-aprovada-pelo-proprietário-em-18102026).

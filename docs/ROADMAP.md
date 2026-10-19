@@ -15,8 +15,8 @@
 ## Gates obrigatórios
 - Issue, requisito GOG-xxx e critérios de aceite antes da implementação.
 - Testes unitários, integração, interface, segurança e fluxos críticos.
-- Revisão técnica independente e aprovação do proprietário para PR.
+- PR rastreável com evidências e reversão; revisão independente opcional. Pedido explícito de entrega autoriza merge e deploy de homologação após os ajustes.
 - Homologação com evidências; publicação em produção somente com autorização específica e plano de reversão.
 
 ## Bloqueios a resolver
-Provedor financeiro, emissão fiscal nacional, banco offline, revisores técnicos, metas de qualidade, orçamento e identidade visual.
+Provedor financeiro, emissão fiscal nacional, banco offline, metas de qualidade, orçamento e identidade visual.

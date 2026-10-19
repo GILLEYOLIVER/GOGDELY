@@ -16,11 +16,11 @@ O segredo `GOGDELY_DATABASE_PASSWORD` foi informado diretamente no Render, sem e
 
 ## Publicação e limites
 
-O fluxo planejado é GitHub → revisão/merge aprovado em `develop` → migração testada e registrada → deploy do Render → verificação de SHA, `/health`, `/ready` e fluxos. Auto-deploy do Render não aplica migrações no Supabase. Em plano Free não há etapa pre-deploy adequada para DDL; a migração precisará de um job protegido e revisado. O serviço gratuito pode adormecer, e o projeto gratuito Supabase pode pausar por inatividade. Nenhum serviço pago foi autorizado.
+O fluxo planejado é GitHub → merge da entrega autorizada em `develop` → migração registrada e compatível → deploy do Render → verificação de SHA, `/health`, `/ready` e fluxos. Revisão independente deixou de ser condição de merge (GOG-107 atualizado). Auto-deploy do Render não aplica migrações no Supabase. Em plano Free não há etapa pre-deploy adequada para DDL; a migração precisará de um job protegido. O serviço gratuito pode adormecer, e o projeto gratuito Supabase pode pausar por inatividade. Nenhum serviço pago foi autorizado.
 
 ## Critérios antes de pedidos reais
 
-Autenticação, convite e onboarding da loja; autorização API + RLS com testes entre tenants; políticas de Storage; transações e idempotência de pedidos; confirmação de pagamento por provedor; observabilidade, backup e restauração; revisão independente e aprovação do proprietário; testes em dispositivos. A API bootstrap atual não oferece esses fluxos.
+Autenticação, convite e onboarding da loja; autorização API + RLS, com isolamento verificado entre tenants antes de dados reais; políticas de Storage; transações e idempotência de pedidos; confirmação de pagamento por provedor; observabilidade, backup e restauração; testes em dispositivos antes da operação real. A API bootstrap atual não oferece esses fluxos.
 
 ## Reversão
 
