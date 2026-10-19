@@ -150,6 +150,35 @@ def test_catalog_rejects_blank_name_and_unreviewed_image_url():
     assert external_image.status_code == 422
 
 
+def test_stale_catalog_update_returns_conflict_without_audit(monkeypatch):
+    calls = []
+
+    class Connection:
+        def run(self, sql, **parameters):
+            calls.append(sql)
+            return []
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(online_catalog, "authorized_branch", lambda *_:
+        AuthorizedBranch(tenant_id=TENANT, tenant_name="Loja A", branch_id=BRANCH,
+                         branch_name="Centro", role="owner"))
+    monkeypatch.setattr(online_catalog, "configured_database_url", lambda: "private-url")
+    monkeypatch.setattr(online_catalog, "connect_database", lambda *_: Connection())
+    _override_user()
+    try:
+        response = TestClient(app).put(BASE + f"/{ITEM}", json={
+            "name": "Pizza", "category_name": "Pizzas", "price_cents": 3200,
+            "expected_updated_at": "2026-10-19 12:00:00+00",
+        })
+    finally:
+        app.dependency_overrides.clear()
+    assert response.status_code == 409
+    assert not any("INSERT INTO gogdely.menu_item_events" in sql for sql in calls)
+    assert "GREATEST(clock_timestamp()" in calls[3]
+
+
 def test_catalog_database_failure_hides_secret(monkeypatch, caplog):
     monkeypatch.setattr(online_catalog, "configured_database_url", lambda: "private-url")
 

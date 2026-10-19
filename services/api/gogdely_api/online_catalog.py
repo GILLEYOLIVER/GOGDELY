@@ -254,7 +254,9 @@ def update_catalog_item(
            SET name = :name, description = :description,
                category_name = :category, price_cents = :price,
                image_path = :image, available = :available,
-               sort_order = :sort_order, updated_at = now()
+               sort_order = :sort_order,
+               updated_at = GREATEST(clock_timestamp(),
+                                     updated_at + interval '1 microsecond')
            WHERE tenant_id = :tenant AND branch_id = :branch
              AND item_id = :item_id
              AND updated_at = CAST(:expected AS timestamptz)
