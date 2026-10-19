@@ -11,6 +11,14 @@ O Cliente, a Gestão e o Entregador têm build Web. Em cada origem hospedada, `r
 
 ## Limites atuais
 
-Os três builds locais são prévias demonstrativas. Não há hospedagem pública, pipeline de publicação, autenticação multiempresa, API gerenciada ou teste no iPhone instalado para esta release. `version.json` no bundle local é um marcador de build, não prova de deploy live. Apps nativos instalados dependem de distribuição própria; atualizar dados remotos não altera o binário do aplicativo.
+Os três PWAs demonstrativos estão hospedados no Render em `/cliente/`,
+`/gestao/` e `/entregador/`, com auto deploy da branch `develop` ativado em
+18/10/2026. O deploy `dep-dbanoobbc2fs73c3mdp0` ficou `live` no SHA
+`17e4f78db2d5043a7353364912cf493a159816e3`; os três caminhos, manifestos
+e arquivos `version.json` responderam HTTP 200 com o mesmo SHA. Não houve
+teste visual em aparelho nesta entrega, dispensado pelo proprietário. Os PWAs
+ainda usam dados fictícios em memória e não possuem autenticação multiempresa
+nem pedidos compartilhados com a API gerenciada. Apps nativos instalados
+dependem de distribuição própria; atualizar dados remotos não altera o binário.
 
-O workflow `pwa-build.yml` compila e verifica os três bundles em PRs e pushes para `develop`/`main` com o SDK Flutter fixado em `4cf24164269a5ebf0c16a028a00727d0e77bbb05` (3.47.0). Ele não publica artefatos: a publicação exige a API pronta no mesmo SHA, autorização de entrega e verificação das três URLs. A revisão independente é opcional (GOG-107 atualizado). O checkout do código fonte do Flutter é do repositório oficial; não há nova action de terceiros para instalar o SDK.
+O workflow `pwa-build.yml` compila e verifica os três bundles em PRs e pushes para `develop`/`main` com o SDK Flutter fixado em `4cf24164269a5ebf0c16a028a00727d0e77bbb05` (3.47.0). A publicação atual ocorre pelo Render Static Site após commits em `develop`; o workflow não publica artefatos. A revisão independente é opcional (GOG-107 atualizado). O checkout do código fonte do Flutter é do repositório oficial; não há nova action de terceiros para instalar o SDK.

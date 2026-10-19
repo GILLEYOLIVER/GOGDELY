@@ -11,6 +11,14 @@ Os ícones da Entrega e Gestão usam arte própria azul/grafite, inclusive no
 atalho do iPhone (`apple-touch-icon`). Um atalho instalado antes da troca de
 ícone pode precisar ser removido e adicionado novamente no iOS.
 
+Em 18/10/2026, o Static Site `gogdely-pwas-homologacao` foi ligado a
+`develop`, com auto deploy **On Commit**. O deploy
+`dep-dbanoobbc2fs73c3mdp0` ficou `live` no SHA
+`17e4f78db2d5043a7353364912cf493a159816e3`. Cliente, Gestão e
+Entregador responderam HTTP 200 em seus caminhos; os três `version.json`
+confirmaram o mesmo SHA e os manifestos mantiveram `start_url` separados.
+Isso é confirmação de publicação, sem teste visual nos aparelhos nesta entrega.
+
 Essas prévias usam **somente dados fictícios em memória**. Os três aplicativos
 não compartilham pedidos entre si e não acessam a API do Render nem o banco
 Supabase. Um pedido visualizado na prévia não é um pedido real. O fluxo
