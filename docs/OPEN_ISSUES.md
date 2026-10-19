@@ -15,6 +15,7 @@
 9. Identidade: paleta, tipografia, marca e disponibilidade jurídica.
 10. Supabase/Render: orçamento, limites, alertas e arquitetura operacional.
 11. Convites de lojas (GOG-025/075/082): [ADR-0002](adr/0002-store-onboarding-invitations.md) proposta. O SMTP padrão do Supabase não entrega convites a endereços de lojas fora da organização; provedor externo, custo, MFA Master e fluxo de revogação ainda exigem revisão e aprovação antes de enviar e-mails reais.
+12. Gestão/Entregador no iPhone: a barra superior e os layouts compactos foram redesenhados no código, mas a aparência do PWA instalado ainda precisa ser confirmada no aparelho. A tela financeira segue demonstrativa; conciliação, taxas, repasses e relatórios auditáveis dependem do provedor e do modelo financeiro aprovados. A edição do cardápio hospedado depende da integração segura de identidade e tenant.
 
 Não considerar pendências como decisões resolvidas.
 

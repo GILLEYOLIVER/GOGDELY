@@ -178,7 +178,7 @@ Este checklist controla a conclusão de cada decisão sem alterar o texto aprova
 - [ ] **GOG-090** — Navegação Cliente focada em categorias. Prévia Flutter revisada em 14/10/2026 com trilho de categorias, busca, ofertas e lista de lojas; avaliação em aparelho e homologação pendentes.
 - [ ] **GOG-091** — Início com localização, categorias, promoções e recomendações. Prévia Flutter revisada em 14/10/2026 com endereço digitado, destaques e produtos promocionais do catálogo; GPS e recomendações personalizadas pendentes.
 - [ ] **GOG-092** — Layout padronizado e identidade visual por empresa.
-- [ ] **GOG-093** — Gestão adaptativa para mouse, teclado e toque.
+- [ ] **GOG-093** — Gestão adaptativa para mouse, teclado e toque. Prévia de Dashboard, Cardápio e Financeiro reorganizada para celular com navegação inferior e busca/filtro ilustrativos; validação em PWA instalado, teclado, leitor de tela e fluxos reais ainda pendente. Ver [Design System](DESIGN_SYSTEM.md#refinamento-da-prévia-gestão-e-entregador--gog-087088093).
 - [ ] **GOG-094** — KDS cartões e lista.
 - [ ] **GOG-095** — Entregador mapa e lista.
 - [ ] **GOG-096** — Master dashboard e módulos configuráveis.
