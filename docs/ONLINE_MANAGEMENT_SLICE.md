@@ -17,10 +17,12 @@
   pedido da mesa ainda não está implementado online.
 - O PWA Cliente hospedado, compilado com `GOGDELY_HOSTED_PWA=true`, abre
   `?loja=<slug>&mesa=<numero>` no catálogo público da API e permite buscar
-  produtos da loja. Não oferece pedidos ou pagamentos fictícios. A Gestão
+  produtos da loja. Na entrada geral, pesquisa produtos disponíveis entre
+  lojas ativas e permite abrir a loja encontrada. A descoberta é limitada aos
+  primeiros 60 produtos por consulta; paginação e ranking ainda faltam.
+  Não oferece pedidos ou pagamentos fictícios. A Gestão
   autenticada gera o link e a matriz QR após validar o vínculo da filial.
-  Esse QR apenas abre o catálogo; ainda não cria pedido. Sem slug, a entrada
-  informa que é necessário o link da loja. Na Gestão web, a ficha de mesa
+  Esse QR apenas abre o catálogo; ainda não cria pedido. Na Gestão web, a ficha de mesa
   abre isolada para imprimir ou salvar em PDF pela função do navegador.
 
 ## Configuração e ordem de implantação

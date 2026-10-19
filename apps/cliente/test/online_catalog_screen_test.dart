@@ -7,6 +7,29 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 
 void main() {
+  testWidgets('general app searches products and opens their store', (tester) async {
+    final client = MockClient((request) async {
+      if (request.url.path.endsWith('/discover')) {
+        return http.Response(jsonEncode([{
+          'slug': 'loja-a', 'store_name': 'Loja A', 'item_name': 'Pizza',
+          'category_name': 'Pizzas', 'price_cents': 3200,
+        }]), 200);
+      }
+      return http.Response(jsonEncode({'name': 'Loja A', 'items': []}), 200);
+    });
+    await tester.pumpWidget(MaterialApp(home: OnlineCatalogScreen(
+      slug: '', apiBaseUrl: 'https://api.example.test', client: client,
+    )));
+    await tester.pumpAndSettle();
+    expect(find.text('Explore os cardápios'), findsOneWidget);
+    expect(find.text('Pizza'), findsOneWidget);
+    await tester.tap(find.text('Pizza'));
+    await tester.pumpAndSettle();
+    expect(find.text('Loja A'), findsOneWidget);
+    expect(find.text('Explorar outras lojas'), findsOneWidget);
+    client.close();
+  });
+
   test('QR link selects the store and valid table number', () {
     final screen = OnlineCatalogScreen.fromUri(
       Uri.parse('https://pwa.example.test/cliente/?loja=loja-a&mesa=12'),
@@ -64,7 +87,7 @@ void main() {
     )));
     await tester.pump();
     expect(called, isFalse);
-    expect(find.text('Abra o link ou QR da sua loja'), findsOneWidget);
+    expect(find.text('Link da loja inválido.'), findsOneWidget);
     client.close();
   });
 }

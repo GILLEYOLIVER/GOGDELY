@@ -48,6 +48,30 @@ def test_public_catalog_uses_anon_role_and_available_items(monkeypatch):
     assert calls[-2][0] == "COMMIT"
 
 
+def test_public_discovery_filters_active_available_items(monkeypatch):
+    calls = []
+
+    class Connection:
+        def run(self, sql, **parameters):
+            calls.append((sql, parameters))
+            if "FROM gogdely.branches b" in sql:
+                return [["loja-a", "Loja A", ITEM, "Pizza", "Pizzas", 3000]]
+            return []
+
+        def close(self):
+            pass
+
+    monkeypatch.setattr(online_catalog, "configured_database_url", lambda: "secret-url")
+    monkeypatch.setattr(online_catalog, "connect_database", lambda *_: Connection())
+    response = TestClient(app).get("/api/v1/catalog/discover?q=pizza")
+    assert response.status_code == 200
+    assert response.json()[0]["item_name"] == "Pizza"
+    assert calls[1][0] == "SET LOCAL ROLE anon"
+    assert "i.available" in calls[2][0]
+    assert "b.status = 'active'" in calls[2][0]
+    assert calls[2][1]["pattern"] == "%pizza%"
+
+
 def test_management_catalog_requires_real_identity():
     assert TestClient(app).get(BASE).status_code == 401
     assert TestClient(app).post(BASE, json={}).status_code == 401

@@ -67,6 +67,15 @@ class StoreCatalog(BaseModel):
     role: str | None = None
 
 
+class DiscoveryItem(BaseModel):
+    slug: str
+    store_name: str
+    item_id: UUID
+    item_name: str
+    category_name: str
+    price_cents: int
+
+
 def _read(role: str, statement: str, *, user_id: UUID | None = None, **parameters):
     """Run one SELECT with the DB role and verified Auth subject scoped to it."""
     database_url = configured_database_url()
@@ -150,6 +159,36 @@ def _catalog(rows, *, role: str | None = None) -> StoreCatalog:
         tenant_id=UUID(first[0]), branch_id=UUID(first[1]),
         slug=first[2], name=first[3], items=items, role=role,
     )
+
+
+@router.get("/catalog/discover", response_model=list[DiscoveryItem])
+def discover_catalog(q: str = "") -> list[DiscoveryItem]:
+    """Search only active stores and available products under the anon RLS role."""
+    query = q.strip()
+    if len(query) > 80:
+        raise HTTPException(status_code=422, detail="Search is too long")
+    # Escape LIKE wildcards so a typed percent or underscore is literal.
+    pattern = "%" + query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_") + "%"
+    rows = _read(
+        "anon",
+        """SELECT b.slug, b.name, i.item_id::text, i.name,
+                  i.category_name, i.price_cents
+           FROM gogdely.branches b
+           JOIN gogdely.tenants t ON t.tenant_id = b.tenant_id
+           JOIN gogdely.menu_items i
+             ON i.tenant_id = b.tenant_id AND i.branch_id = b.branch_id
+           WHERE b.status = 'active' AND t.status = 'active'
+             AND i.available
+             AND (:empty OR b.name ILIKE :pattern ESCAPE '\\'
+                  OR i.name ILIKE :pattern ESCAPE '\\'
+                  OR i.category_name ILIKE :pattern ESCAPE '\\')
+           ORDER BY b.name, i.category_name, i.sort_order, i.name
+           LIMIT 60""",
+        empty=not query, pattern=pattern,
+    )
+    return [DiscoveryItem(slug=row[0], store_name=row[1], item_id=UUID(row[2]),
+                          item_name=row[3], category_name=row[4],
+                          price_cents=row[5]) for row in rows]
 
 
 @router.get("/catalog/stores/{slug}", response_model=StoreCatalog)

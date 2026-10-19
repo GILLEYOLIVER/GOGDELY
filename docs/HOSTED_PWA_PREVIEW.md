@@ -22,7 +22,7 @@ Isso é confirmação de publicação, sem teste visual nos aparelhos nesta entr
 No deploy registrado acima, as três prévias usavam **dados fictícios em
 memória**. A mudança de catálogo online nesta branch ainda não está publicada:
 o Cliente hospedado passa a consultar o catálogo público por link de loja e
-mesa, e a Gestão usa a API autenticada para editar produtos e gerar QR de
+mesa ou busca geral de produtos, e a Gestão usa a API autenticada para editar produtos e gerar QR de
 mesa. Isso depende das migrações e da configuração descritas em
 [ONLINE_MANAGEMENT_SLICE.md](ONLINE_MANAGEMENT_SLICE.md). O Entregador continua
 demonstrativo. Nenhum dos PWAs compartilha ainda pedidos online.
