@@ -4,6 +4,7 @@ import 'package:gogdely_design_system/gogdely_design_system.dart';
 import 'screens/home_screen.dart';
 import 'screens/brand_motion.dart';
 import 'lab/device_lab.dart';
+import 'screens/online_catalog_screen.dart';
 
 void main() => runApp(const GogdelyApp());
 
@@ -22,8 +23,19 @@ class _GogdelyAppState extends State<GogdelyApp> {
   @override
   Widget build(BuildContext context) {
     const lab = bool.fromEnvironment('GOGDELY_LAB', defaultValue: false);
+    const hosted = bool.fromEnvironment('GOGDELY_HOSTED_PWA', defaultValue: false);
     final showLab =
         lab && (kIsWeb || defaultTargetPlatform == TargetPlatform.windows);
+    final landing = hosted && kIsWeb
+        ? OnlineCatalogScreen.fromUri(Uri.base)
+        : showLab
+            ? DeviceLab(
+                child: HomeScreen(
+                    themeMode: themeMode,
+                    onThemeChanged: (mode) => setState(() => themeMode = mode)))
+            : HomeScreen(
+                themeMode: themeMode,
+                onThemeChanged: (mode) => setState(() => themeMode = mode));
     return MaterialApp(
       title: 'GOGDELY',
       debugShowCheckedModeBanner: false,
@@ -31,14 +43,7 @@ class _GogdelyAppState extends State<GogdelyApp> {
       darkTheme: gogdelyTheme(Brightness.dark),
       themeMode: themeMode,
       home: Stack(children: [
-        showLab
-            ? DeviceLab(
-                child: HomeScreen(
-                    themeMode: themeMode,
-                    onThemeChanged: (mode) => setState(() => themeMode = mode)))
-            : HomeScreen(
-                themeMode: themeMode,
-                onThemeChanged: (mode) => setState(() => themeMode = mode)),
+        landing,
         if (_showIntro)
           Positioned.fill(
               child: BrandIntro(

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# Homologation previews only. This builds fictional, standalone Flutter data;
-# it does not connect a browser to the local SQLite pilot or to Supabase.
+# Homologation builds. Cliente and Gestão use the reviewed online API when
+# configured; Entregador still has no online assignment flow.
 flutter_dir="${RENDER_CACHE_DIR:-/tmp}/gogdely-flutter-3.47.0"
 flutter_sha=4cf24164269a5ebf0c16a028a00727d0e77bbb05
 
@@ -21,7 +21,16 @@ for app in cliente gestao entregador; do
   (
     cd "apps/$app"
     flutter pub get
-    flutter build web --release --no-wasm-dry-run --base-href "/$app/"
+    if [[ "$app" == "cliente" ]]; then
+      flutter build web --release --no-wasm-dry-run --base-href "/$app/" \
+        --dart-define="GOGDELY_HOSTED_PWA=true" \
+        --dart-define="GOGDELY_API_BASE_URL=${GOGDELY_API_BASE_URL:-}"
+    elif [[ "$app" == "gestao" && -n "${GOGDELY_API_BASE_URL:-}" ]]; then
+      flutter build web --release --no-wasm-dry-run --base-href "/$app/" \
+        --dart-define="GOGDELY_API_BASE_URL=$GOGDELY_API_BASE_URL"
+    else
+      flutter build web --release --no-wasm-dry-run --base-href "/$app/"
+    fi
   )
 done
 

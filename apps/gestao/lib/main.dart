@@ -10,6 +10,7 @@ import 'menu_editor.dart';
 import 'management_overview.dart';
 import 'table_qr_page.dart';
 import 'pos_page.dart';
+import 'online_management.dart';
 
 void main() => runApp(const GestaoApp());
 
@@ -28,10 +29,10 @@ class _GestaoAppState extends State<GestaoApp> {
         theme: gogdelyTheme(Brightness.light),
         darkTheme: gogdelyTheme(Brightness.dark),
         themeMode: mode,
-        home: GestaoHome(
+        home: localDemoEnabled ? GestaoHome(
           themeMode: mode,
           onThemeChanged: (value) => setState(() => mode = value),
-        ),
+        ) : const OnlineManagementShell(),
       );
 }
 

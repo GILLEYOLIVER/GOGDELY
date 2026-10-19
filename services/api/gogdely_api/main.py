@@ -11,7 +11,7 @@ from fastapi.responses import JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-from gogdely_api.auth import AuthenticatedUser, authenticated_user
+from gogdely_api.auth import AuthenticatedUser, authenticated_user, _supabase_host
 from gogdely_api.config import config
 from gogdely_api.db_health import configured_database_url, foundation_ready
 from gogdely_api.local_orders import router as local_router
@@ -19,6 +19,9 @@ from gogdely_api.master_local import router as master_router
 from gogdely_api.memberships import (
     AuthorizedBranch, StoreMembership, authorized_branch, list_memberships,
 )
+from gogdely_api.online_catalog import router as online_catalog_router
+from gogdely_api.online_tables import router as online_tables_router
+from gogdely_api.table_settings import router as table_settings_router
 from gogdely_api.web_seo import https_and_security_middleware, router as seo_router
 
 app = FastAPI(title="GOGDELY API", version="0.1.0", docs_url="/docs")
@@ -33,6 +36,9 @@ app.add_middleware(
 app.include_router(seo_router)
 app.include_router(local_router)
 app.include_router(master_router)
+app.include_router(online_catalog_router)
+app.include_router(online_tables_router)
+app.include_router(table_settings_router)
 app.middleware("http")(https_and_security_middleware)
 
 
@@ -87,6 +93,14 @@ def api_info() -> dict[str, str]:
         "environment": os.environ.get("GOGDELY_ENV", "local"),
         "storage": "managed-database-configured" if config.uses_managed_database else "sqlite-local-demo",
     }
+
+
+@app.get("/api/v1/client-config", tags=["system"])
+def client_config() -> dict[str, str]:
+    """Public Supabase Auth configuration for hosted clients; never a secret key."""
+    host, publishable_key = _supabase_host()
+    return {"supabase_url": f"https://{host}",
+            "supabase_publishable_key": publishable_key}
 
 
 class IdentityResponse(BaseModel):

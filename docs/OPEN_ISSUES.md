@@ -14,8 +14,19 @@
 8. Governança: proteção de branches e registro de autorização da entrega; revisão técnica independente opcional conforme alteração GOG-107.
 9. Identidade: paleta, tipografia, marca e disponibilidade jurídica.
 10. Supabase/Render: orçamento, limites, alertas e arquitetura operacional.
-11. Convites de lojas (GOG-025/075/082): [ADR-0002](adr/0002-store-onboarding-invitations.md) proposta. O SMTP padrão do Supabase não entrega convites a endereços de lojas fora da organização; provedor externo, custo, MFA Master e fluxo de revogação ainda exigem revisão e aprovação antes de enviar e-mails reais.
+11. Convites de lojas (GOG-025/075/082): [ADR-0002](adr/0002-store-onboarding-invitations.md) proposta. O SMTP padrão do Supabase não entrega convites a endereços de lojas fora da organização; provedor externo, custo, MFA Master e fluxo de revogação ainda exigem revisão e aprovação antes de enviar e-mails reais. A primeira fatia de login/cardápio da Gestão está documentada em [ONLINE_MANAGEMENT_SLICE.md](ONLINE_MANAGEMENT_SLICE.md); migrações ainda não aplicadas.
+    A [documentação oficial do Supabase](https://supabase.com/docs/guides/auth/auth-smtp)
+    confirma a exigência de SMTP próprio para convites externos. Não tratar
+    e-mail enviado no laboratório como entrega de convite a restaurante real.
 12. Gestão/Entregador no iPhone: a barra superior e os layouts compactos foram redesenhados no código, mas a aparência do PWA instalado ainda precisa ser confirmada no aparelho. A tela financeira segue demonstrativa; conciliação, taxas, repasses e relatórios auditáveis dependem do provedor e do modelo financeiro aprovados. A edição do cardápio hospedado depende da integração segura de identidade e tenant.
+13. Integrações externas de entrega (GOG-041/050): o
+    [portal oficial do iFood](https://developer.ifood.com.br/pt-BR/) exige
+    cadastro profissional, app de teste, homologação e autorização de cada
+    loja antes de acessar produção. O
+    [portal oficial da 99Food](https://developer-food.99app.com/) descreve
+    certificação, app de teste, aceitação e autorização. Nenhum dos dois
+    concede automaticamente ao GOGDELY a capacidade de despachar entregas;
+    credenciais, escopo de API e aprovação dos parceiros ainda faltam.
 
 Não considerar pendências como decisões resolvidas.
 
