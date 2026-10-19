@@ -75,7 +75,9 @@ def foundation_ready(database_url: str) -> bool:
                WHERE n.nspname = 'gogdely' AND c.relkind = 'r'
                  AND c.relrowsecurity AND c.relforcerowsecurity"""
         )
-        ready = bool(rows and rows[0][0] == 8)
+        # New RLS-protected tables may be added by reviewed migrations.
+        # Readiness requires the original foundation, not an exact table count.
+        ready = bool(rows and rows[0][0] >= 8)
         if not ready:
             logger.warning("database foundation schema is incomplete")
         return ready

@@ -16,6 +16,7 @@ from gogdely_api.config import config
 from gogdely_api.db_health import configured_database_url, foundation_ready
 from gogdely_api.local_orders import router as local_router
 from gogdely_api.master_local import router as master_router
+from gogdely_api.master_admin import router as master_admin_router
 from gogdely_api.master_online import router as online_master_router
 from gogdely_api.memberships import (
     AuthorizedBranch, StoreMembership, authorized_branch, list_memberships,
@@ -38,6 +39,7 @@ app.include_router(seo_router)
 app.include_router(local_router)
 app.include_router(master_router)
 app.include_router(online_master_router)
+app.include_router(master_admin_router)
 app.include_router(online_catalog_router)
 app.include_router(online_tables_router)
 app.include_router(table_settings_router)

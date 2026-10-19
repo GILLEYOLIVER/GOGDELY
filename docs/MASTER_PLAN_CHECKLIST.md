@@ -69,7 +69,7 @@ Este checklist controla a conclusão de cada decisão sem alterar o texto aprova
 - [ ] **GOG-001** — Marketplace de diversas categorias.
 - [ ] **GOG-002** — Todo o Brasil.
 - [ ] **GOG-003** — Delivery, retirada e consumo no local.
-- [ ] **GOG-004** — Assinaturas e comissões por empresa.
+- [ ] **GOG-004** — Assinaturas e comissões por empresa. A branch GOG-096 prepara configuração percentual auditada por empresa em homologação; cobrança, cálculo por venda, split e assinatura ainda não existem. Ver [escopo Master](MASTER_ONLINE_ADMIN.md).
 - [ ] **GOG-005** — Arquitetura nacional desde a primeira versão.
 - [ ] **GOG-006** — Supabase e Render.
 
@@ -96,7 +96,7 @@ Este checklist controla a conclusão de cada decisão sem alterar o texto aprova
 - [ ] **GOG-022** — Avaliações de estabelecimentos e entregas.
 - [ ] **GOG-023** — Etapas detalhadas e mapa do entregador em tempo real.
 - [ ] **GOG-024** — Pedidos imediatos e agendados.
-- [ ] **GOG-025** — Cadastro de empresas com aprovação. Fluxo de convite e ativação proposto em [ADR-0002](adr/0002-store-onboarding-invitations.md); implementação, revisão e homologação pendentes.
+- [ ] **GOG-025** — Cadastro de empresas com aprovação. A branch GOG-096 prepara cadastro `draft`, vínculo de conta já confirmada e ativação auditada, ainda sem migration aplicada. Convites por e-mail e aprovação completa seguem pendentes em [ADR-0002](adr/0002-store-onboarding-invitations.md).
 - [ ] **GOG-026** — Pedido por QR de mesa entra na fila com número, data e hora.
 
 ### Gestão
@@ -165,7 +165,7 @@ Este checklist controla a conclusão de cada decisão sem alterar o texto aprova
 - [ ] **GOG-079** — Conflitos por regra automática e revisão humana crítica.
 - [ ] **GOG-080** — Realtime para eventos e API para comandos/transações.
 - [ ] **GOG-081** — Backups frequentes, retenção e restauração testada.
-- [ ] **GOG-082** — Master MFA, dispositivos confiáveis, auditoria e aprovação crítica.
+- [ ] **GOG-082** — Master MFA, dispositivos confiáveis, auditoria e aprovação crítica. Master hospedado exige MFA real; a branch GOG-096 prepara auditoria imutável para comandos administrativos, ainda sem migration aplicada. Dispositivos confiáveis e dupla aprovação pendentes.
 - [ ] **GOG-083** — LGPD privacidade desde concepção, retenção, exportação, exclusão e auditoria.
 - [ ] **GOG-084** — Logs, métricas, alertas e rastreamento de falhas.
 - [ ] **GOG-085** — Serviços pagos somente com aprovação e orçamento.
@@ -183,7 +183,7 @@ Este checklist controla a conclusão de cada decisão sem alterar o texto aprova
 - [ ] **GOG-093** — Gestão adaptativa para mouse, teclado e toque. Prévia de Dashboard, Cardápio e Financeiro reorganizada para celular com navegação inferior e busca/filtro ilustrativos; validação em PWA instalado, teclado, leitor de tela e fluxos reais ainda pendente. Ver [Design System](DESIGN_SYSTEM.md#refinamento-da-prévia-gestão-e-entregador--gog-087088093).
 - [ ] **GOG-094** — KDS cartões e lista.
 - [ ] **GOG-095** — Entregador mapa e lista.
-- [ ] **GOG-096** — Master dashboard e módulos configuráveis.
+- [ ] **GOG-096** — Master dashboard e módulos configuráveis. Paleta clara corrigida na branch GOG-096; cadastro, status, vínculo e comissão preparados no código e pendentes de migração/validação hospedada. Ver [escopo Master](MASTER_ONLINE_ADMIN.md).
 - [ ] **GOG-097** — F5 simulador iPhone, Android e tablet.
 - [ ] **GOG-098** — Laboratório com cenários de pedidos, notificações e offline.
 - [ ] **GOG-099** — Acessibilidade avançada com testes automáticos e manuais.

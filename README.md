@@ -2,7 +2,7 @@
 
 Plataforma marketplace multiempresa e multissetorial (planejamento v1.0).
 
-**Estado:** protótipos locais e prévias web em homologação. O laboratório de pedidos fictícios usa SQLite isolado no computador. A API de homologação usa a fundação PostgreSQL separada no Supabase; a publicação web inclui Cliente, Gestão, Entregador e Master. O Master hospedado oferece entrada protegida e visão de empresas somente para leitura, condicionada à conta autorizada com MFA. Convites, ações administrativas e operação comercial real ainda não estão liberados. Nenhum app está homologado para produção.
+**Estado:** protótipos locais e prévias web em homologação. O laboratório de pedidos fictícios usa SQLite isolado no computador. A API de homologação usa a fundação PostgreSQL separada no Supabase; a publicação web inclui Cliente, Gestão, Entregador e Master. O Master hospedado oferece entrada protegida e visão de empresas condicionada à conta autorizada com MFA. A branch GOG-096 prepara cadastro, ativação, suspensão, vínculo de conta confirmada, configuração de comissão e auditoria; essas ações dependem da migration `0006` e não foram liberadas no banco hospedado. Convites externos, cobrança e operação comercial real continuam pendentes. Nenhum app está homologado para produção.
 
 ## Aplicativos previstos
 - Cliente — Android e iOS (Flutter)

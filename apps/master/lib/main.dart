@@ -29,7 +29,10 @@ class _MasterAppState extends State<MasterApp> {
         debugShowCheckedModeBanner: false,
         theme: gogdelyTheme(Brightness.light),
         darkTheme: gogdelyTheme(Brightness.dark),
-        themeMode: mode,
+        // The hosted control panel uses one reviewed palette. Following the
+        // device's dark setting while painting light backgrounds produced
+        // dark cards with unreadable dark text on installed iPhone PWAs.
+        themeMode: hostedMaster ? ThemeMode.light : mode,
         home: hostedMaster
             ? const OnlineMasterShell()
             : MasterHome(
