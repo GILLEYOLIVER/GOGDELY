@@ -27,3 +27,7 @@ Escopo: todo o repositório. Documento Mestre v1.0, decisões GOG-001 a GOG-141,
 
 ## Conclusão de tarefas
 Requisito rastreado, evidências e limites documentados, licença e segurança verificadas conforme escopo. Após autorização de entrega do proprietário, concluir merge e deploy de homologação e conferir o resultado sem nova parada para revisão independente. Migração de banco exige backup recuperável e confirmação do esquema de destino; não publicar uma funcionalidade dependente de migração pendente como operacional. Produção e serviços pagos seguem sujeitos à autorização expressa.
+
+## Agent skills
+
+As skills de planejamento instaladas no Codex podem ajudar a transformar conversas em especificações e tarefas. A instalação é no perfil do agente, não nos aplicativos. O rastreador é o GitHub deste repositório; consulte `docs/agents/issue-tracker.md`. Para termos e decisões do domínio, consulte `docs/agents/domain.md`. As skills não substituem o Documento Mestre, os requisitos GOG-xxx nem os limites de homologação acima.
