@@ -21,8 +21,10 @@
 1. Revisar o esquema real e obter backup restaurável do projeto Supabase de
    homologação. A interface do plano Free informa que **não há backups
    agendados**. Em 19/10/2026, consulta de contagem no SQL Editor mostrou zero
-   linhas nas oito tabelas `gogdely` da fundação; isso **não substitui** backup
-   de esquema e Auth.
+   linhas nas oito tabelas `gogdely` da fundação, zero usuários `auth.users`
+   e zero políticas `gogdely`. As contagens de colunas por tabela coincidem
+   com `0001_cloud_foundation.sql` (6/3/4/12/9/8/15/4), mas isso **não
+   substitui** um backup restaurável de esquema e Auth.
 2. Aplicar, em ordem, `0002_membership_read_policies.sql`,
    `0003_catalog_read_policies.sql`, `0004_catalog_write_policies.sql` e
    `0005_table_payment_preference.sql`, após comparação com o esquema instalado.
