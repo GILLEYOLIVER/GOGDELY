@@ -19,10 +19,13 @@ Entregador responderam HTTP 200 em seus caminhos; os três `version.json`
 confirmaram o mesmo SHA e os manifestos mantiveram `start_url` separados.
 Isso é confirmação de publicação, sem teste visual nos aparelhos nesta entrega.
 
-Essas prévias usam **somente dados fictícios em memória**. Os três aplicativos
-não compartilham pedidos entre si e não acessam a API do Render nem o banco
-Supabase. Um pedido visualizado na prévia não é um pedido real. O fluxo
-integrado com SQLite continua restrito ao laboratório local.
+No deploy registrado acima, as três prévias usavam **dados fictícios em
+memória**. A mudança de catálogo online nesta branch ainda não está publicada:
+o Cliente hospedado passa a consultar o catálogo público por link de loja e
+mesa, e a Gestão usa a API autenticada para editar produtos e gerar QR de
+mesa. Isso depende das migrações e da configuração descritas em
+[ONLINE_MANAGEMENT_SLICE.md](ONLINE_MANAGEMENT_SLICE.md). O Entregador continua
+demonstrativo. Nenhum dos PWAs compartilha ainda pedidos online.
 
 ## Publicação e verificação
 

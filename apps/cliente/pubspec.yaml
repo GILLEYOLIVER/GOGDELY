@@ -11,6 +11,7 @@ dependencies:
     path: ../../packages/design_system
   gogdely_local_demo_api:
     path: ../../packages/local_demo_api
+  http: ^1.6.0
   flutter_map: ^8.2.2
   latlong2: ^0.9.1
   mobile_scanner: ^7.1.4

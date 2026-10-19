@@ -1,8 +1,12 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
+
+import 'online_qr_print_stub.dart'
+    if (dart.library.html) 'online_qr_print_web.dart' as qr_print;
 
 /// Hosted management entry point. Never uses the local demo's fake orders.
 class OnlineManagementShell extends StatefulWidget {
@@ -26,6 +30,9 @@ class _OnlineManagementShellState extends State<OnlineManagementShell> {
   bool _allowTablePayment = false;
   bool _tablePaymentAvailable = false;
   bool _tableSettingsLoaded = false;
+  Map<String, dynamic>? _tableQr;
+  int _tableNumber = 1;
+  bool _loadingQr = false;
 
   @override
   void initState() {
@@ -129,7 +136,8 @@ class _OnlineManagementShellState extends State<OnlineManagementShell> {
   }
 
   Future<void> _selectBranch(Map<String, dynamic> branch) async {
-    setState(() { _busy = true; _error = null; });
+    setState(() { _busy = true; _error = null; _tableQr = null;
+      _tableSettingsLoaded = false; });
     try {
       final tenant = branch['tenant_id'];
       final id = branch['branch_id'];
@@ -156,6 +164,22 @@ class _OnlineManagementShellState extends State<OnlineManagementShell> {
       if (mounted) setState(() => _error = 'Não foi possível carregar o cardápio desta loja.');
     } finally {
       if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _loadTableQr() async {
+    if (_branch == null || _loadingQr) return;
+    setState(() { _loadingQr = true; _error = null; });
+    try {
+      final data = await _request(
+        '/api/v1/management/tenants/${_branch!['tenant_id']}'
+        '/branches/${_branch!['branch_id']}/tables/$_tableNumber/qr',
+      ) as Map<String, dynamic>;
+      if (mounted) setState(() => _tableQr = data);
+    } catch (_) {
+      if (mounted) setState(() => _error = 'Não foi possível gerar o QR da mesa.');
+    } finally {
+      if (mounted) setState(() => _loadingQr = false);
     }
   }
 
@@ -313,6 +337,56 @@ class _OnlineManagementShellState extends State<OnlineManagementShell> {
                   ) else const Text('Configuração das mesas indisponível no momento.'),
                 ],
               ))),
+              Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('Link da mesa', style: Theme.of(context).textTheme.titleLarge),
+                  const SizedBox(height: 6),
+                  const Text('O QR abre o cardápio desta loja e identifica a mesa. '
+                      'Pedidos online ainda não estão habilitados.'),
+                  const SizedBox(height: 12),
+                  Wrap(spacing: 12, runSpacing: 8, crossAxisAlignment: WrapCrossAlignment.center,
+                    children: [
+                      SizedBox(width: 130, child: DropdownButtonFormField<int>(
+                        initialValue: _tableNumber,
+                        decoration: const InputDecoration(labelText: 'Mesa'),
+                        items: [for (var n = 1; n <= 30; n++)
+                          DropdownMenuItem(value: n, child: Text('$n'))],
+                        onChanged: _loadingQr ? null : (value) => setState(() {
+                          _tableNumber = value ?? 1; _tableQr = null;
+                        }),
+                      )),
+                      FilledButton.icon(onPressed: _loadingQr ? null : _loadTableQr,
+                        icon: const Icon(Icons.qr_code_2),
+                        label: const Text('Gerar QR')),
+                    ],
+                  ),
+                  if (_loadingQr) const Padding(padding: EdgeInsets.only(top: 12),
+                    child: LinearProgressIndicator()),
+                  if (_tableQr != null) ...[
+                    const SizedBox(height: 16),
+                    Center(child: SizedBox(width: 240, height: 240,
+                      child: CustomPaint(painter: _QrPainter(_tableQr!['matrix'] as List<dynamic>)))),
+                    const SizedBox(height: 12),
+                    SelectableText(_tableQr!['url'] as String),
+                    TextButton.icon(onPressed: () async {
+                      await Clipboard.setData(ClipboardData(text: _tableQr!['url'] as String));
+                      if (mounted) ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Link da mesa copiado.')));
+                    }, icon: const Icon(Icons.copy), label: const Text('Copiar link')),
+                    TextButton.icon(onPressed: () {
+                      final opened = qr_print.openPrintableTableQr(
+                        storeName: _branch!['tenant_name'] as String,
+                        tableNumber: _tableNumber,
+                        url: _tableQr!['url'] as String,
+                        matrix: _tableQr!['matrix'] as List<dynamic>,
+                      );
+                      if (!opened) ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Abra a Gestão no navegador para imprimir ou salvar o QR em PDF.')));
+                    }, icon: const Icon(Icons.print_outlined),
+                      label: const Text('Imprimir / salvar PDF')),
+                  ],
+                ],
+              ))),
               if ({'owner', 'manager'}.contains(_branch!['role']))
                 Align(alignment: Alignment.centerRight,
                     child: FilledButton.icon(onPressed: _busy ? null : () => _editItem(),
@@ -335,4 +409,29 @@ class _OnlineManagementShellState extends State<OnlineManagementShell> {
       )),
     );
   }
+}
+
+class _QrPainter extends CustomPainter {
+  const _QrPainter(this.matrix);
+  final List<dynamic> matrix;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (matrix.isEmpty) return;
+    canvas.drawRect(Offset.zero & size, Paint()..color = Colors.white);
+    final side = matrix.length;
+    final cell = size.width / side;
+    final ink = Paint()..color = const Color(0xFF151B2B);
+    for (var y = 0; y < side; y++) {
+      final row = matrix[y] as List<dynamic>;
+      for (var x = 0; x < row.length; x++) {
+        if (row[x] == true) {
+          canvas.drawRect(Rect.fromLTWH(x * cell, y * cell, cell + .2, cell + .2), ink);
+        }
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _QrPainter oldDelegate) => matrix != oldDelegate.matrix;
 }

@@ -20,6 +20,7 @@ from gogdely_api.memberships import (
     AuthorizedBranch, StoreMembership, authorized_branch, list_memberships,
 )
 from gogdely_api.online_catalog import router as online_catalog_router
+from gogdely_api.online_tables import router as online_tables_router
 from gogdely_api.table_settings import router as table_settings_router
 from gogdely_api.web_seo import https_and_security_middleware, router as seo_router
 
@@ -36,6 +37,7 @@ app.include_router(seo_router)
 app.include_router(local_router)
 app.include_router(master_router)
 app.include_router(online_catalog_router)
+app.include_router(online_tables_router)
 app.include_router(table_settings_router)
 app.middleware("http")(https_and_security_middleware)
 

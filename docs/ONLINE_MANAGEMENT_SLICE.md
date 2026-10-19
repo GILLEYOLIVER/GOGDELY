@@ -15,6 +15,13 @@
   provedor de pagamento, confirmação e conciliação. Com a opção desligada, o
   pedido da mesa deverá ser enviado para fechamento no caixa. Este fluxo de
   pedido da mesa ainda não está implementado online.
+- O PWA Cliente hospedado, compilado com `GOGDELY_HOSTED_PWA=true`, abre
+  `?loja=<slug>&mesa=<numero>` no catálogo público da API e permite buscar
+  produtos da loja. Não oferece pedidos ou pagamentos fictícios. A Gestão
+  autenticada gera o link e a matriz QR após validar o vínculo da filial.
+  Esse QR apenas abre o catálogo; ainda não cria pedido. Sem slug, a entrada
+  informa que é necessário o link da loja. Na Gestão web, a ficha de mesa
+  abre isolada para imprimir ou salvar em PDF pela função do navegador.
 
 ## Configuração e ordem de implantação
 
@@ -33,7 +40,8 @@
    estático de homologação. Conferir `GOGDELY_SUPABASE_URL` e
    `GOGDELY_SUPABASE_PUBLISHABLE_KEY` na API; nunca usar service-role no PWA.
 4. Configurar `GOGDELY_API_BASE_URL` no build do Static Site para a API de
-   homologação. Publicar o mesmo commit na API e nos PWAs, conferir `/ready`,
+   homologação e `GOGDELY_CLIENT_PWA_URL` na API para a URL HTTPS do Cliente
+   terminada em `/cliente/`. Publicar o mesmo commit na API e nos PWAs, conferir `/ready`,
    `/api/v1/client-config`, `version.json` e uma entrada real com usuário de
    teste vinculado a uma filial.
 5. Testar no Supabase: dono/gerente cria e edita; funcionário é bloqueado;
@@ -46,7 +54,7 @@
   terceiros ainda não estão implementados. Exigem Master com MFA, fluxo
   auditado e SMTP próprio; o SMTP padrão do Supabase não serve para enviar
   convites a empresas externas.
-- Mesas QR com pedido online, PDF imprimível, pagamentos Pix/split, comissões,
+- Mesas QR com pedido online, exportação PDF nativa, pagamentos Pix/split, comissões,
   entregadores, promoções e integrações iFood/99Food seguem em requisitos
   separados. A tela de Gestão não deve apresentar dados fictícios como reais.
 - `supabase_flutter` 2.18.3 (MIT) e `http` 1.6.0 (BSD-3) foram adicionados ao
