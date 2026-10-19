@@ -70,7 +70,7 @@ devem ser revisados antes de aplicar qualquer migration.
 
 ## Sequência de implementação
 
-1. Concluir #39: backup, revisão independente, policies em homologação e
+1. Concluir #39: backup, policies em homologação e
    testes de duas empresas/filiais com Auth real.
 2. Revisar esta ADR e a matriz Master/loja; implementar MFA real e operador
    Master privado. Nunca reaproveitar o MFA exibido na tela do laboratório.
@@ -117,8 +117,9 @@ Após aceites reais, não apagar memberships nem auditoria automaticamente;
 qualquer reversão de DDL depende de backup e migração revisada. O aceite da
 issue #40 exige MFA real do Master, convite de uso único com prazo e
 revogação, auditoria, testes de abuso e isolamento no Supabase de homologação,
-prova de entrega de e-mail, revisão técnica independente e aprovação do
-proprietário. Esta ADR, sozinha, não cumpre esses critérios.
+prova de entrega de e-mail e autorização operacional do proprietário para
+lojas reais. A revisão independente é opcional conforme GOG-107 atualizado;
+esta ADR, sozinha, não cumpre esses critérios.
 
 ## Fontes técnicas
 

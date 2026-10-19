@@ -204,7 +204,7 @@ Este checklist controla a conclusão de cada decisão sem alterar o texto aprova
 - [ ] **GOG-113** — Documentação em toda funcionalidade.
 - [ ] **GOG-114** — Migrations versionadas e revisadas.
 - [ ] **GOG-115** — Segredos nunca no Git; ambientes separados.
-- [ ] **GOG-116** — Deploy de homologação após merge em develop, com confirmação do estado; testes podem ser dispensados expressamente.
+- [ ] **GOG-116** — Deploy de homologação após merge em develop, com confirmação do estado; testes podem ser dispensados expressamente. **Parcial em 18/10/2026:** API e site dos três PWAs apontam para `develop` com auto deploy On Commit; ambos ficaram `live` no SHA `17e4f78`. `/health`, `/ready`, `/version.json` da API e páginas/manifestos/versões dos PWAs responderam HTTP 200. Migração `0002` e fluxos reais de lojas/pedidos ainda pendentes; não marcar o requisito amplo como concluído.
 - [ ] **GOG-117** — Produção com autorização expressa, compatibilidade de banco e plano de reversão; revisão independente opcional.
 - [ ] **GOG-118** — Plano de reversão para toda publicação.
 - [ ] **GOG-119** — Nenhum serviço pago sem aprovação.

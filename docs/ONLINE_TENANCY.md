@@ -1,8 +1,11 @@
 # Leitura de vínculos online — GOG-074 (issue #39)
 
-**Estado:** implementação em branch de integração para revisão. A migration
-`0002_membership_read_policies.sql` não foi aplicada no Supabase, e este
-endpoint não foi publicado no Render.
+**Estado em 18/10/2026:** código integrado em `develop` e API publicada em
+homologação no SHA `17e4f78db2d5043a7353364912cf493a159816e3`.
+`/health`, `/ready` e `/version.json` responderam HTTP 200 nesse deploy.
+A migration `0002_membership_read_policies.sql` **não foi aplicada** no
+Supabase; os endpoints de vínculo não foram homologados nem liberados para
+lojas reais.
 
 ## Fluxo
 
@@ -49,7 +52,8 @@ O painel de backups do plano gratuito informa que não há backups agendados.
 Nenhum backup manual recuperável foi confirmado. Por isso, a `0002` continua
 **não aplicada**; o roteiro transacional com duas identidades também não foi
 executado. Antes de aplicar, ainda faltam comparação completa do esquema
-instalado, backup recuperável e revisão técnica independente da migration.
+instalado e backup recuperável. A revisão independente deixou de ser gate
+conforme GOG-107 atualizado pelo proprietário.
 Nenhum serviço pago ou upgrade foi contratado.
 O [procedimento de backup manual](../database/migrations/README.md#backup-manual-da-homologação)
 está preparado, mas não foi concluído. As ferramentas PostgreSQL 18.6 e o
@@ -64,12 +68,11 @@ foram aplicadas em sequência com roles `anon`/`authenticated`, uma tabela
 `0002_membership_read_policies.sql` passou para `manager`, `staff`, `owner`,
 revogação e `anon`; após seu `ROLLBACK`, as quatro tabelas de vínculos e
 empresas voltaram a zero linhas. O servidor local foi desligado. Esse teste
-não substitui a execução no Supabase nem a revisão independente.
+não substitui a execução no Supabase.
 
 - Confirmar que `0001_cloud_foundation.sql` é exatamente o esquema instalado
   na homologação e realizar backup da base.
-- Revisar a migration por pessoa independente e executar testes negativos
-  reais com dois usuários, duas empresas e filiais distintas, incluindo
+- Executar testes negativos reais com dois usuários, duas empresas e filiais distintas, incluindo
   ausência de vínculo, papel `staff`, `manager` e `owner`. O roteiro transacional
   em `database/verification/0002_membership_read_policies.sql` prepara os
   testes de banco sem persistir empresas/filiais fictícias.
