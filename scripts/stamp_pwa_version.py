@@ -1,4 +1,4 @@
-"""Stamp three completed Flutter Web builds with one reviewed release SHA."""
+"""Stamp every completed Flutter Web build with one reviewed release SHA."""
 
 import json
 import re
@@ -6,7 +6,7 @@ import sys
 from pathlib import Path
 
 
-APPS = ("cliente", "gestao", "entregador")
+APPS = ("cliente", "gestao", "entregador", "master")
 
 
 def stamp(root: Path, commit: str) -> None:
