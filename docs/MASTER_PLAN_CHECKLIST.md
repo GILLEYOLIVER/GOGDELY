@@ -2,6 +2,8 @@
 
 **Atualizado em:** 17/10/2026. **Fonte:** [Documento Mestre](MASTER_PLAN.md) e [decisões GOG-001 a GOG-141](DECISIONS.md).
 
+**Recorte Master hospedado (19/10/2026, GOG-010/082/096 parciais):** PWA Master separado em `/master/`, login Supabase Auth, allowlist de UUIDs e MFA TOTP para leituras de visão geral/empresas reais em homologação. Consulte [escopo e limites](MASTER_ONLINE_SLICE.md). Convites, mutações administrativas, auditoria operacional e provisionamento do primeiro proprietário permanecem pendentes; os itens amplos abaixo continuam abertos.
+
 Este checklist controla a conclusão de cada decisão sem alterar o texto aprovado. **[x]** significa que o escopo exato daquela decisão está demonstrado pela evidência indicada; não significa que o produto inteiro esteja homologado. **[ ]** significa pendente ou parcial. **N/A** é um registro sem ação de implementação. Uma funcionalidade ampla só recebe baixa após testes aplicáveis, evidências, documentação, revisão de segurança e aprovação operacional, conforme o Documento Mestre. O ambiente local fictício não comprova produção.
 
 ## Marcos do piloto Burger House no laboratório local

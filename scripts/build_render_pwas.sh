@@ -17,7 +17,7 @@ fi
 export PATH="$flutter_dir/bin:$PATH"
 flutter config --enable-web
 
-for app in cliente gestao entregador; do
+for app in cliente gestao entregador master; do
   (
     cd "apps/$app"
     flutter pub get
@@ -28,6 +28,10 @@ for app in cliente gestao entregador; do
     elif [[ "$app" == "gestao" && -n "${GOGDELY_API_BASE_URL:-}" ]]; then
       flutter build web --release --no-wasm-dry-run --base-href "/$app/" \
         --dart-define="GOGDELY_API_BASE_URL=$GOGDELY_API_BASE_URL"
+    elif [[ "$app" == "master" ]]; then
+      flutter build web --release --no-wasm-dry-run --base-href "/$app/" \
+        --dart-define="GOGDELY_HOSTED_MASTER=true" \
+        --dart-define="GOGDELY_API_BASE_URL=${GOGDELY_API_BASE_URL:-}"
     else
       flutter build web --release --no-wasm-dry-run --base-href "/$app/"
     fi
