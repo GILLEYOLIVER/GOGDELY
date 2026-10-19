@@ -14,6 +14,7 @@
 8. Governança: proteção de branches e registro de autorização da entrega; revisão técnica independente opcional conforme alteração GOG-107.
 9. Identidade: paleta, tipografia, marca e disponibilidade jurídica.
 10. Supabase/Render: orçamento, limites, alertas e arquitetura operacional.
+11. Convites de lojas (GOG-025/075/082): [ADR-0002](adr/0002-store-onboarding-invitations.md) proposta. O SMTP padrão do Supabase não entrega convites a endereços de lojas fora da organização; provedor externo, custo, MFA Master e fluxo de revogação ainda exigem revisão e aprovação antes de enviar e-mails reais.
 
 Não considerar pendências como decisões resolvidas.
 
