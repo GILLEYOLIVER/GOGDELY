@@ -110,6 +110,11 @@ empresas antes de habilitar endpoints de negócio. Consulte
 `GET /api/v1/auth/memberships` usa a identidade verificada e uma consulta
 PostgreSQL transacional sob o papel `authenticated`. A migration de políticas
 de leitura está em [`0002_membership_read_policies.sql`](../../database/migrations/0002_membership_read_policies.sql).
+`GET /api/v1/management/tenants/{tenant_id}/branches/{branch_id}/context`
+resolve uma filial pelo mesmo papel RLS e retorna HTTP 404 tanto para ID
+inexistente quanto para filial fora do vínculo do usuário. IDs e papéis
+fornecidos no cliente não concedem acesso. O contexto é somente leitura;
+nenhum comando de negócio online foi liberado.
 O fluxo, as verificações necessárias em homologação e a reversão estão em
 [`docs/ONLINE_TENANCY.md`](../../docs/ONLINE_TENANCY.md). Até a revisão
 independente e o teste real de isolamento, o endpoint não deve ser implantado.
