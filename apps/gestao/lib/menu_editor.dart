@@ -22,6 +22,15 @@ class _MenuEditorPageState extends State<MenuEditorPage> {
   bool _reordering = false;
   String _storeId = localDemoPilotStoreId;
   List<Map<String, dynamic>> _stores = const [];
+  String _previewQuery = '';
+  String _previewCategory = 'Todos';
+  final TextEditingController _previewSearch = TextEditingController();
+
+  @override
+  void dispose() {
+    _previewSearch.dispose();
+    super.dispose();
+  }
 
   @override
   void initState() {
@@ -83,8 +92,9 @@ class _MenuEditorPageState extends State<MenuEditorPage> {
     if (key == 'recipe' && value is List) {
       if (value.isEmpty) return 'Nenhuma';
       return value
-          .map((part) =>
-              '${(part as Map)['ingredient_id']}: ${part['quantity']}')
+          .map(
+            (part) => '${(part as Map)['ingredient_id']}: ${part['quantity']}',
+          )
           .join(', ');
     }
     if (key == 'image_ref')
@@ -106,7 +116,8 @@ class _MenuEditorPageState extends State<MenuEditorPage> {
             height: 460,
             child: events.isEmpty
                 ? const Center(
-                    child: Text('Nenhuma alteração local registrada ainda.'))
+                    child: Text('Nenhuma alteração local registrada ainda.'),
+                  )
                 : ListView.builder(
                     itemCount: events.length,
                     itemBuilder: (context, index) {
@@ -127,8 +138,9 @@ class _MenuEditorPageState extends State<MenuEditorPage> {
                               '';
                       return ExpansionTile(
                         title: Text('$action · ${event['product_name']}'),
-                        subtitle:
-                            Text('$timestamp · ${event['actor']} (sem login)'),
+                        subtitle: Text(
+                          '$timestamp · ${event['actor']} (sem login)',
+                        ),
                         children: [
                           for (final entry in changes.entries)
                             ListTile(
@@ -146,8 +158,9 @@ class _MenuEditorPageState extends State<MenuEditorPage> {
           ),
           actions: [
             TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('Fechar'))
+              onPressed: () => Navigator.pop(context),
+              child: const Text('Fechar'),
+            ),
           ],
         ),
       );
@@ -224,7 +237,8 @@ class _MenuEditorPageState extends State<MenuEditorPage> {
       final parts = line.split(';');
       if (parts.length != 2)
         throw const FormatException(
-            'Use uma linha por ingrediente: codigo; quantidade');
+          'Use uma linha por ingrediente: codigo; quantidade',
+        );
       final id = parts[0].trim();
       final quantity = int.tryParse(parts[1].trim());
       if (!available.contains(id) ||
@@ -233,7 +247,8 @@ class _MenuEditorPageState extends State<MenuEditorPage> {
           quantity < 1 ||
           quantity > 1000000) {
         throw const FormatException(
-            'Confira os códigos e quantidades da ficha técnica.');
+          'Confira os códigos e quantidades da ficha técnica.',
+        );
       }
       result.add(DemoRecipePart(id, quantity));
     }
@@ -254,15 +269,21 @@ if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
 }
 ''';
       final result = await Process.run(
-        'powershell.exe',
-        ['-NoProfile', '-STA', '-WindowStyle', 'Hidden', '-Command', script],
-        stdoutEncoding: utf8,
-      );
+          'powershell.exe',
+          [
+            '-NoProfile',
+            '-STA',
+            '-WindowStyle',
+            'Hidden',
+            '-Command',
+            script,
+          ],
+          stdoutEncoding: utf8);
       if (result.exitCode == 0) path = (result.stdout as String).trim();
     } else if (Platform.isMacOS) {
       final result = await Process.run('osascript', [
         '-e',
-        'POSIX path of (choose file with prompt "Escolher foto do produto")'
+        'POSIX path of (choose file with prompt "Escolher foto do produto")',
       ]);
       if (result.exitCode == 0) path = (result.stdout as String).trim();
     }
@@ -281,23 +302,26 @@ if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
     final form = GlobalKey<FormState>();
     final id = TextEditingController(text: original?.productId ?? '');
     final name = TextEditingController(text: original?.name ?? '');
-    final description =
-        TextEditingController(text: original?.description ?? '');
+    final description = TextEditingController(
+      text: original?.description ?? '',
+    );
     final category = TextEditingController(text: original?.category ?? '');
     final price = TextEditingController(
-        text: original == null
-            ? ''
-            : (original.priceCents / 100)
-                .toStringAsFixed(2)
-                .replaceAll('.', ','));
+      text: original == null
+          ? ''
+          : (original.priceCents / 100).toStringAsFixed(2).replaceAll('.', ','),
+    );
     final image = TextEditingController(text: original?.imageRef ?? '');
     final promo = TextEditingController(text: '${original?.promoPercent ?? 0}');
-    final stock =
-        TextEditingController(text: original?.stockQuantity?.toString() ?? '');
+    final stock = TextEditingController(
+      text: original?.stockQuantity?.toString() ?? '',
+    );
     final addons = TextEditingController(
       text: original?.addons
-              .map((addon) =>
-                  '${addon.name}; ${(addon.priceCents / 100).toStringAsFixed(2).replaceAll('.', ',')}')
+              .map(
+                (addon) =>
+                    '${addon.name}; ${(addon.priceCents / 100).toStringAsFixed(2).replaceAll('.', ',')}',
+              )
               .join('\n') ??
           '',
     );
@@ -319,186 +343,215 @@ if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
             child: Form(
               key: form,
               child: SingleChildScrollView(
-                child: Column(mainAxisSize: MainAxisSize.min, children: [
-                  TextFormField(
-                    controller: id,
-                    readOnly: original != null,
-                    decoration: const InputDecoration(
-                        labelText: 'Código do produto (ex.: x-salada)'),
-                    validator: (value) => RegExp(r'^[a-z0-9][a-z0-9-]{1,47}$')
-                            .hasMatch(value ?? '')
-                        ? null
-                        : 'Use 2 a 48 letras minúsculas, números ou hífens.',
-                  ),
-                  TextFormField(
-                    controller: name,
-                    decoration: const InputDecoration(labelText: 'Nome'),
-                    validator: (value) => (value?.trim().length ?? 0) >= 2
-                        ? null
-                        : 'Informe o nome.',
-                  ),
-                  TextFormField(
-                    controller: description,
-                    decoration: const InputDecoration(labelText: 'Descrição'),
-                    maxLines: 2,
-                  ),
-                  TextFormField(
-                    controller: category,
-                    decoration: const InputDecoration(labelText: 'Categoria'),
-                    validator: (value) => (value?.trim().length ?? 0) >= 2
-                        ? null
-                        : 'Informe a categoria.',
-                  ),
-                  TextFormField(
-                    controller: price,
-                    decoration: const InputDecoration(
-                        labelText: 'Preço (R\$)', hintText: '28,90'),
-                    keyboardType:
-                        const TextInputType.numberWithOptions(decimal: true),
-                    validator: (value) {
-                      final amount =
-                          double.tryParse((value ?? '').replaceAll(',', '.'));
-                      return amount != null && amount > 0 && amount <= 100000
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    TextFormField(
+                      controller: id,
+                      readOnly: original != null,
+                      decoration: const InputDecoration(
+                        labelText: 'Código do produto (ex.: x-salada)',
+                      ),
+                      validator: (value) => RegExp(r'^[a-z0-9][a-z0-9-]{1,47}$')
+                              .hasMatch(value ?? '')
                           ? null
-                          : 'Informe um preço válido.';
-                    },
-                  ),
-                  TextFormField(
-                    controller: promo,
-                    decoration:
-                        const InputDecoration(labelText: 'Promoção (%)'),
-                    keyboardType: TextInputType.number,
-                    validator: (value) {
-                      final number = int.tryParse(value ?? '');
-                      return number != null && number >= 0 && number <= 90
-                          ? null
-                          : 'Use de 0 a 90%.';
-                    },
-                  ),
-                  TextFormField(
-                    controller: stock,
-                    readOnly: original != null,
-                    decoration: InputDecoration(
-                      labelText: 'Saldo em unidades (opcional)',
-                      helperText: original == null
-                          ? 'Vazio = sem controle de estoque neste produto.'
-                          : 'Use Estoque para registrar entrada, perda ou contagem.',
+                          : 'Use 2 a 48 letras minúsculas, números ou hífens.',
                     ),
-                    keyboardType: TextInputType.number,
-                    validator: (value) {
-                      final trimmed = (value ?? '').trim();
-                      if (trimmed.isEmpty) return null;
-                      final amount = int.tryParse(trimmed);
-                      return amount != null && amount >= 0 && amount <= 1000000
+                    TextFormField(
+                      controller: name,
+                      decoration: const InputDecoration(labelText: 'Nome'),
+                      validator: (value) => (value?.trim().length ?? 0) >= 2
                           ? null
-                          : 'Informe de 0 a 1.000.000 unidades.';
-                    },
-                  ),
-                  TextFormField(
-                    controller: image,
-                    decoration: const InputDecoration(
-                      labelText: 'Imagem (URL HTTPS ou imagem de demonstração)',
-                      helperText: 'Ex.: assets/images/burger.png',
+                          : 'Informe o nome.',
                     ),
-                    validator: (value) {
-                      final ref = value?.trim() ?? '';
-                      return ref.isEmpty ||
-                              ref.startsWith('/api/v1/local/uploads/') ||
-                              ref.startsWith('https://') ||
-                            ref.startsWith('assets/images/')
+                    TextFormField(
+                      controller: description,
+                      decoration: const InputDecoration(labelText: 'Descrição'),
+                      maxLines: 2,
+                    ),
+                    TextFormField(
+                      controller: category,
+                      decoration: const InputDecoration(labelText: 'Categoria'),
+                      validator: (value) => (value?.trim().length ?? 0) >= 2
                           ? null
-                          : 'Use URL HTTPS ou uma imagem interna.';
-                    },
-                  ),
-                  OutlinedButton.icon(
-                    onPressed: uploading
-                        ? null
-                        : () async {
-                            updateDialog(() => uploading = true);
-                            try {
-                              final picked = await _pickImage();
-                              if (picked != null) {
-                                final ref = await widget.api
-                                    .uploadImage(picked.$1, picked.$2);
+                          : 'Informe a categoria.',
+                    ),
+                    TextFormField(
+                      controller: price,
+                      decoration: const InputDecoration(
+                        labelText: 'Preço (R\$)',
+                        hintText: '28,90',
+                      ),
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      validator: (value) {
+                        final amount = double.tryParse(
+                          (value ?? '').replaceAll(',', '.'),
+                        );
+                        return amount != null && amount > 0 && amount <= 100000
+                            ? null
+                            : 'Informe um preço válido.';
+                      },
+                    ),
+                    TextFormField(
+                      controller: promo,
+                      decoration: const InputDecoration(
+                        labelText: 'Promoção (%)',
+                      ),
+                      keyboardType: TextInputType.number,
+                      validator: (value) {
+                        final number = int.tryParse(value ?? '');
+                        return number != null && number >= 0 && number <= 90
+                            ? null
+                            : 'Use de 0 a 90%.';
+                      },
+                    ),
+                    TextFormField(
+                      controller: stock,
+                      readOnly: original != null,
+                      decoration: InputDecoration(
+                        labelText: 'Saldo em unidades (opcional)',
+                        helperText: original == null
+                            ? 'Vazio = sem controle de estoque neste produto.'
+                            : 'Use Estoque para registrar entrada, perda ou contagem.',
+                      ),
+                      keyboardType: TextInputType.number,
+                      validator: (value) {
+                        final trimmed = (value ?? '').trim();
+                        if (trimmed.isEmpty) return null;
+                        final amount = int.tryParse(trimmed);
+                        return amount != null &&
+                                amount >= 0 &&
+                                amount <= 1000000
+                            ? null
+                            : 'Informe de 0 a 1.000.000 unidades.';
+                      },
+                    ),
+                    TextFormField(
+                      controller: image,
+                      decoration: const InputDecoration(
+                        labelText:
+                            'Imagem (URL HTTPS ou imagem de demonstração)',
+                        helperText: 'Ex.: assets/images/burger.png',
+                      ),
+                      validator: (value) {
+                        final ref = value?.trim() ?? '';
+                        return ref.isEmpty ||
+                                ref.startsWith('/api/v1/local/uploads/') ||
+                                ref.startsWith('https://') ||
+                                ref.startsWith('assets/images/')
+                            ? null
+                            : 'Use URL HTTPS ou uma imagem interna.';
+                      },
+                    ),
+                    OutlinedButton.icon(
+                      onPressed: uploading
+                          ? null
+                          : () async {
+                              updateDialog(() => uploading = true);
+                              try {
+                                final picked = await _pickImage();
+                                if (picked != null) {
+                                  final ref = await widget.api.uploadImage(
+                                    picked.$1,
+                                    picked.$2,
+                                  );
+                                  if (dialogContext.mounted) {
+                                    updateDialog(() => image.text = ref);
+                                  }
+                                }
+                              } catch (error) {
+                                if (mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        'Não foi possível enviar a foto: $error',
+                                      ),
+                                    ),
+                                  );
+                                }
+                              } finally {
                                 if (dialogContext.mounted) {
-                                  updateDialog(() => image.text = ref);
+                                  updateDialog(() => uploading = false);
                                 }
                               }
-                            } catch (error) {
-                              if (mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                                    content: Text(
-                                        'Não foi possível enviar a foto: $error')));
-                              }
-                            } finally {
-                              if (dialogContext.mounted) {
-                                updateDialog(() => uploading = false);
-                              }
-                            }
-                          },
-                    icon: const Icon(Icons.add_photo_alternate_outlined),
-                    label: Text(uploading
-                        ? 'Enviando foto...'
-                        : 'Escolher foto do computador'),
-                  ),
-                  TextFormField(
-                    controller: addons,
-                    decoration: const InputDecoration(
-                      labelText: 'Adicionais e preços',
-                      helperText: 'Um por linha: Bacon; 4,00',
+                            },
+                      icon: const Icon(Icons.add_photo_alternate_outlined),
+                      label: Text(
+                        uploading
+                            ? 'Enviando foto...'
+                            : 'Escolher foto do computador',
+                      ),
                     ),
-                    maxLines: 4,
-                    validator: (value) {
-                      try {
-                        _parseAddons(value ?? '');
-                        return null;
-                      } on FormatException catch (error) {
-                        return error.message;
-                      }
-                    },
-                  ),
-                  if (_storeId == localDemoPilotStoreId) ...[
-                  const SizedBox(height: 12),
-                  const Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text('Ficha técnica · consumo por 1 produto',
-                        style: TextStyle(fontWeight: FontWeight.w700)),
-                  ),
-                  SelectableText(_ingredients.isEmpty
-                      ? 'Cadastre ingredientes em Estoque antes de montar a ficha.'
-                      : _ingredients
-                          .map((item) => '${item.ingredientId} (${item.unit})')
-                          .join(' · ')),
-                  TextFormField(
-                    controller: recipe,
-                    decoration: const InputDecoration(
-                      labelText: 'Ingredientes e quantidades',
-                      helperText: 'Uma linha: pao; 1 ou carne; 180',
+                    TextFormField(
+                      controller: addons,
+                      decoration: const InputDecoration(
+                        labelText: 'Adicionais e preços',
+                        helperText: 'Um por linha: Bacon; 4,00',
+                      ),
+                      maxLines: 4,
+                      validator: (value) {
+                        try {
+                          _parseAddons(value ?? '');
+                          return null;
+                        } on FormatException catch (error) {
+                          return error.message;
+                        }
+                      },
                     ),
-                    maxLines: 4,
-                    validator: (value) {
-                      try {
-                        _parseRecipe(value ?? '');
-                        return null;
-                      } on FormatException catch (error) {
-                        return error.message;
-                      }
-                    },
-                  ),
+                    if (_storeId == localDemoPilotStoreId) ...[
+                      const SizedBox(height: 12),
+                      const Align(
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          'Ficha técnica · consumo por 1 produto',
+                          style: TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                      ),
+                      SelectableText(
+                        _ingredients.isEmpty
+                            ? 'Cadastre ingredientes em Estoque antes de montar a ficha.'
+                            : _ingredients
+                                .map(
+                                  (item) =>
+                                      '${item.ingredientId} (${item.unit})',
+                                )
+                                .join(' · '),
+                      ),
+                      TextFormField(
+                        controller: recipe,
+                        decoration: const InputDecoration(
+                          labelText: 'Ingredientes e quantidades',
+                          helperText: 'Uma linha: pao; 1 ou carne; 180',
+                        ),
+                        maxLines: 4,
+                        validator: (value) {
+                          try {
+                            _parseRecipe(value ?? '');
+                            return null;
+                          } on FormatException catch (error) {
+                            return error.message;
+                          }
+                        },
+                      ),
+                    ],
+                    SwitchListTile(
+                      title: const Text('Produto disponível'),
+                      value: available,
+                      onChanged: (value) =>
+                          updateDialog(() => available = value),
+                    ),
                   ],
-                  SwitchListTile(
-                    title: const Text('Produto disponível'),
-                    value: available,
-                    onChanged: (value) => updateDialog(() => available = value),
-                  ),
-                ]),
+                ),
               ),
             ),
           ),
           actions: [
             TextButton(
-                onPressed: () => Navigator.pop(dialogContext),
-                child: const Text('Cancelar')),
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancelar'),
+            ),
             FilledButton(
               onPressed: uploading
                   ? null
@@ -508,26 +561,28 @@ if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
                           (double.parse(price.text.replaceAll(',', '.')) * 100)
                               .round();
                       Navigator.pop(
-                          dialogContext,
-                          DemoMenuItem(
-                            productId: id.text.trim(),
-                            name: name.text.trim(),
-                            description: description.text.trim(),
-                            category: category.text.trim(),
-                            priceCents: cents,
-                            imageRef: image.text.trim(),
-                            available: available,
-                            stockQuantity: stock.text.trim().isEmpty
-                                ? null
-                                : int.parse(stock.text.trim()),
-                            updatedAt: original?.updatedAt ?? '',
-                            promoPercent: int.parse(promo.text),
-                            effectivePriceCents:
-                                cents * (100 - int.parse(promo.text)) ~/ 100,
-                            addons: _parseAddons(addons.text),
-                            recipe: _storeId == localDemoPilotStoreId
-                                ? _parseRecipe(recipe.text) : const [],
-                          ));
+                        dialogContext,
+                        DemoMenuItem(
+                          productId: id.text.trim(),
+                          name: name.text.trim(),
+                          description: description.text.trim(),
+                          category: category.text.trim(),
+                          priceCents: cents,
+                          imageRef: image.text.trim(),
+                          available: available,
+                          stockQuantity: stock.text.trim().isEmpty
+                              ? null
+                              : int.parse(stock.text.trim()),
+                          updatedAt: original?.updatedAt ?? '',
+                          promoPercent: int.parse(promo.text),
+                          effectivePriceCents:
+                              cents * (100 - int.parse(promo.text)) ~/ 100,
+                          addons: _parseAddons(addons.text),
+                          recipe: _storeId == localDemoPilotStoreId
+                              ? _parseRecipe(recipe.text)
+                              : const [],
+                        ),
+                      );
                     },
               child: const Text('Salvar'),
             ),
@@ -547,12 +602,16 @@ if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
     recipe.dispose();
     if (result == null || !mounted) return;
     try {
-      await widget.api.saveMenuItem(result,
-          create: original == null, storeId: _storeId);
+      await widget.api.saveMenuItem(
+        result,
+        create: original == null,
+        storeId: _storeId,
+      );
       await _load();
       if (mounted)
         ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Cardápio salvo no banco local.')));
+          const SnackBar(content: Text('Cardápio salvo no banco local.')),
+        );
     } catch (error) {
       if (mounted) setState(() => _error = '$error');
     }
@@ -561,64 +620,442 @@ if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
   @override
   Widget build(BuildContext context) {
     if (!localDemoEnabled) {
-      return const Center(
-          child: Text(
-              'Abra com o perfil F5 de banco local para editar o cardápio.'));
+      return _hostedPreview();
     }
-    return ListView(padding: const EdgeInsets.all(20), children: [
-      Wrap(
+    return ListView(
+      padding: const EdgeInsets.all(20),
+      children: [
+        Wrap(
           alignment: WrapAlignment.spaceBetween,
           crossAxisAlignment: WrapCrossAlignment.center,
           spacing: 12,
           runSpacing: 8,
           children: [
             Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text('Cardápio · ${_stores.where((store) => store['id'] == _storeId).firstOrNull?['name'] ?? 'carregando'}',
-                      style:
-                          TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
-                  Text(
-                      'Edição local de teste. O Cliente atualiza automaticamente.'),
-                ]),
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Cardápio · ${_stores.where((store) => store['id'] == _storeId).firstOrNull?['name'] ?? 'carregando'}',
+                  style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800),
+                ),
+                Text(
+                  'Edição local de teste. O Cliente atualiza automaticamente.',
+                ),
+              ],
+            ),
             FilledButton.icon(
-                onPressed: () => _edit(),
-                icon: const Icon(Icons.add),
-                label: const Text('Novo produto')),
+              onPressed: () => _edit(),
+              icon: const Icon(Icons.add),
+              label: const Text('Novo produto'),
+            ),
             OutlinedButton.icon(
-                onPressed: _showHistory,
-                icon: const Icon(Icons.history),
-                label: const Text('Histórico')),
-          ]),
-      if (_stores.isNotEmpty)
-        DropdownButtonFormField<String>(
-          initialValue: _storeId,
-          decoration: const InputDecoration(
-              labelText: 'Estabelecimento de teste',
-              prefixIcon: Icon(Icons.storefront_outlined)),
-          items: [for (final store in _stores)
-            DropdownMenuItem(value: store['id'] as String,
-                child: Text(store['name'] as String))],
-          onChanged: (value) {
-            if (value == null) return;
-            setState(() => _storeId = value);
-            _load();
-          },
+              onPressed: _showHistory,
+              icon: const Icon(Icons.history),
+              label: const Text('Histórico'),
+            ),
+          ],
         ),
-      const SizedBox(height: 14),
-      if (_error != null)
-        Text(_error!, style: const TextStyle(color: Colors.red)),
-      if (_loading || _reordering) const LinearProgressIndicator(),
-      Align(
+        if (_stores.isNotEmpty)
+          DropdownButtonFormField<String>(
+            initialValue: _storeId,
+            decoration: const InputDecoration(
+              labelText: 'Estabelecimento de teste',
+              prefixIcon: Icon(Icons.storefront_outlined),
+            ),
+            items: [
+              for (final store in _stores)
+                DropdownMenuItem(
+                  value: store['id'] as String,
+                  child: Text(store['name'] as String),
+                ),
+            ],
+            onChanged: (value) {
+              if (value == null) return;
+              setState(() => _storeId = value);
+              _load();
+            },
+          ),
+        const SizedBox(height: 14),
+        if (_error != null)
+          Text(_error!, style: const TextStyle(color: Colors.red)),
+        if (_loading || _reordering) const LinearProgressIndicator(),
+        Align(
           alignment: Alignment.centerRight,
           child: IconButton(
             tooltip: 'Atualizar cardápio',
             onPressed: _load,
             icon: const Icon(Icons.refresh),
-          )),
-      for (var index = 0; index < _items.length; index++)
-        _itemTile(_items[index], index),
-    ]);
+          ),
+        ),
+        for (var index = 0; index < _items.length; index++)
+          _itemTile(_items[index], index),
+      ],
+    );
+  }
+
+  Widget _hostedPreview() {
+    const products = <({
+      String name,
+      String category,
+      String description,
+      String image,
+      int cents,
+    })>[
+      (
+        name: 'Burger da casa',
+        category: 'Hambúrgueres',
+        description: 'Pão brioche, blend artesanal, queijo e salada.',
+        image: 'assets/images/burger.png',
+        cents: 2890,
+      ),
+      (
+        name: 'Pizza da casa',
+        category: 'Pizzas',
+        description: 'Massa leve, molho de tomate e queijo gratinado.',
+        image: 'assets/images/pizza.png',
+        cents: 4690,
+      ),
+      (
+        name: 'Combinado especial',
+        category: 'Outros',
+        description: 'Seleção ilustrativa para explorar o catálogo.',
+        image: 'assets/images/sushi.png',
+        cents: 5490,
+      ),
+    ];
+    final visible = products
+        .where(
+          (item) =>
+              (_previewCategory == 'Todos' ||
+                  item.category == _previewCategory) &&
+              ('${item.name} ${item.description}'.toLowerCase().contains(
+                    _previewQuery.toLowerCase(),
+                  )),
+        )
+        .toList();
+    final colors = Theme.of(context).colorScheme;
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(20, 22, 20, 32),
+      children: [
+        Text(
+          'PRÉVIA ILUSTRATIVA',
+          style: TextStyle(
+            color: colors.primary,
+            fontSize: 10,
+            fontWeight: FontWeight.w900,
+            letterSpacing: 1.2,
+          ),
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          'Seu cardápio',
+          style: TextStyle(fontSize: 28, fontWeight: FontWeight.w900),
+        ),
+        const SizedBox(height: 5),
+        Text(
+          'Organize produtos, preços e disponibilidade em um só lugar.',
+          style: TextStyle(color: colors.onSurfaceVariant, fontSize: 13),
+        ),
+        const SizedBox(height: 20),
+        Container(
+          padding: const EdgeInsets.all(18),
+          decoration: BoxDecoration(
+            color: GogdelyColors.graphite,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: GogdelyColors.blue,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.storefront_outlined,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(width: 13),
+              const Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Burger House',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.w800,
+                        fontSize: 17,
+                      ),
+                    ),
+                    SizedBox(height: 3),
+                    Text(
+                      'Catálogo de demonstração',
+                      style: TextStyle(
+                        color: GogdelyColors.mutedDark,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right, color: GogdelyColors.accent),
+            ],
+          ),
+        ),
+        const SizedBox(height: 22),
+        TextField(
+          controller: _previewSearch,
+          decoration: InputDecoration(
+            hintText: 'Buscar produto',
+            prefixIcon: const Icon(Icons.search),
+            suffixIcon: _previewQuery.isEmpty
+                ? null
+                : IconButton(
+                    tooltip: 'Limpar busca',
+                    icon: const Icon(Icons.close),
+                    onPressed: () => setState(() {
+                      _previewQuery = '';
+                      _previewSearch.clear();
+                    }),
+                  ),
+          ),
+          onChanged: (value) => setState(() => _previewQuery = value),
+        ),
+        const SizedBox(height: 13),
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          child: Row(
+            children: [
+              for (final category in [
+                'Todos',
+                'Hambúrgueres',
+                'Pizzas',
+                'Outros',
+              ])
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: ChoiceChip(
+                    label: Text(category),
+                    selected: _previewCategory == category,
+                    onSelected: (_) =>
+                        setState(() => _previewCategory = category),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 24),
+        Row(
+          children: [
+            const Expanded(
+              child: Text(
+                'Produtos',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800),
+              ),
+            ),
+            Text(
+              '${visible.length} itens',
+              style: TextStyle(color: colors.onSurfaceVariant, fontSize: 12),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        if (visible.isEmpty)
+          Container(
+            padding: const EdgeInsets.all(28),
+            decoration: BoxDecoration(
+              color: colors.surface,
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: const Column(
+              children: [
+                Icon(Icons.search_off, size: 32),
+                SizedBox(height: 8),
+                Text('Nenhum produto encontrado.'),
+              ],
+            ),
+          )
+        else
+          LayoutBuilder(
+            builder: (context, c) {
+              final columns = c.maxWidth >= 800
+                  ? 3
+                  : c.maxWidth >= 540
+                      ? 2
+                      : 1;
+              final width = (c.maxWidth - 12 * (columns - 1)) / columns;
+              return Wrap(
+                spacing: 12,
+                runSpacing: 12,
+                children: [
+                  for (final product in visible)
+                    SizedBox(width: width, child: _previewCard(product)),
+                ],
+              );
+            },
+          ),
+        const SizedBox(height: 20),
+        Container(
+          padding: const EdgeInsets.all(13),
+          decoration: BoxDecoration(
+            color: colors.primary.withValues(alpha: .07),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.info_outline, color: colors.primary, size: 18),
+              const SizedBox(width: 9),
+              const Expanded(
+                child: Text(
+                  'Esta é uma prévia navegável. A edição usa apenas o banco local do laboratório; nenhuma loja real está conectada.',
+                  style: TextStyle(fontSize: 11),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _previewCard(
+    ({
+      String name,
+      String category,
+      String description,
+      String image,
+      int cents,
+    }) item,
+  ) {
+    final colors = Theme.of(context).colorScheme;
+    return Material(
+      color: colors.surface,
+      borderRadius: BorderRadius.circular(17),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(17),
+        onTap: () => showModalBottomSheet<void>(
+          context: context,
+          isScrollControlled: true,
+          showDragHandle: true,
+          builder: (context) => SafeArea(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(22, 4, 22, 28),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(15),
+                    child: Image.asset(
+                      item.image,
+                      height: 180,
+                      width: double.infinity,
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    item.name,
+                    style: const TextStyle(
+                      fontSize: 23,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(item.description),
+                  const SizedBox(height: 12),
+                  Text(
+                    _money(item.cents),
+                    style: TextStyle(
+                      fontSize: 22,
+                      color: colors.primary,
+                      fontWeight: FontWeight.w800,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  const Text(
+                    'Produto ilustrativo · edição indisponível na prévia online',
+                    style: TextStyle(fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(17),
+            border: Border.all(
+              color: colors.outlineVariant.withValues(alpha: .5),
+            ),
+          ),
+          child: Row(
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Image.asset(
+                  item.image,
+                  width: 84,
+                  height: 84,
+                  fit: BoxFit.cover,
+                ),
+              ),
+              const SizedBox(width: 13),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      item.category.toUpperCase(),
+                      style: TextStyle(
+                        color: colors.primary,
+                        fontSize: 10,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: .5,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      item.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 15,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      item.description,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: colors.onSurfaceVariant,
+                        fontSize: 11,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      _money(item.cents),
+                      style: TextStyle(
+                        color: colors.primary,
+                        fontWeight: FontWeight.w900,
+                        fontSize: 15,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right, size: 18),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 
   Widget _itemTile(DemoMenuItem item, int index) => Card(
@@ -626,33 +1063,40 @@ if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
           leading: _thumbnail(item),
           title: Text(item.name),
           subtitle: Text(
-              '${item.category} · ${_money(item.effectivePriceCents)}'
-              '${item.promoPercent > 0 ? ' · ${item.promoPercent}% OFF' : ''}'
-              ' · ${item.addons.length} adicionais'
-              ' · ${item.recipe.length} ingredientes'
-              ' · ${item.stockQuantity == null ? 'Saldo não controlado' : '${item.stockQuantity} un. em estoque'}'
-              '${item.available && !item.orderable ? ' · Faltam insumos ou produto esgotado' : ''}'
-              '${item.available ? '' : ' · Indisponível'}'),
-          trailing: Row(mainAxisSize: MainAxisSize.min, children: [
-            if (_storeId == localDemoPilotStoreId) IconButton(
-              tooltip: 'Mover ${item.name} para cima',
-              onPressed:
-                  _reordering || index == 0 ? null : () => _moveItem(index, -1),
-              icon: const Icon(Icons.arrow_upward),
-            ),
-            if (_storeId == localDemoPilotStoreId) IconButton(
-              tooltip: 'Mover ${item.name} para baixo',
-              onPressed: _reordering || index == _items.length - 1
-                  ? null
-                  : () => _moveItem(index, 1),
-              icon: const Icon(Icons.arrow_downward),
-            ),
-            IconButton(
-              tooltip: 'Editar ${item.name}',
-              onPressed: () => _edit(item),
-              icon: const Icon(Icons.edit_outlined),
-            ),
-          ]),
+            '${item.category} · ${_money(item.effectivePriceCents)}'
+            '${item.promoPercent > 0 ? ' · ${item.promoPercent}% OFF' : ''}'
+            ' · ${item.addons.length} adicionais'
+            ' · ${item.recipe.length} ingredientes'
+            ' · ${item.stockQuantity == null ? 'Saldo não controlado' : '${item.stockQuantity} un. em estoque'}'
+            '${item.available && !item.orderable ? ' · Faltam insumos ou produto esgotado' : ''}'
+            '${item.available ? '' : ' · Indisponível'}',
+          ),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (_storeId == localDemoPilotStoreId)
+                IconButton(
+                  tooltip: 'Mover ${item.name} para cima',
+                  onPressed: _reordering || index == 0
+                      ? null
+                      : () => _moveItem(index, -1),
+                  icon: const Icon(Icons.arrow_upward),
+                ),
+              if (_storeId == localDemoPilotStoreId)
+                IconButton(
+                  tooltip: 'Mover ${item.name} para baixo',
+                  onPressed: _reordering || index == _items.length - 1
+                      ? null
+                      : () => _moveItem(index, 1),
+                  icon: const Icon(Icons.arrow_downward),
+                ),
+              IconButton(
+                tooltip: 'Editar ${item.name}',
+                onPressed: () => _edit(item),
+                icon: const Icon(Icons.edit_outlined),
+              ),
+            ],
+          ),
           onTap: () => _edit(item),
         ),
       );
@@ -667,17 +1111,22 @@ if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) {
     return ClipRRect(
       borderRadius: BorderRadius.circular(8),
       child: SizedBox(
-          width: 50,
-          height: 50,
-          child: image.startsWith('http')
-              ? Image.network(image,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) =>
-                      const Icon(Icons.broken_image_outlined))
-              : Image.asset(image,
-                  fit: BoxFit.cover,
-                  errorBuilder: (_, __, ___) =>
-                      const Icon(Icons.broken_image_outlined))),
+        width: 50,
+        height: 50,
+        child: image.startsWith('http')
+            ? Image.network(
+                image,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) =>
+                    const Icon(Icons.broken_image_outlined),
+              )
+            : Image.asset(
+                image,
+                fit: BoxFit.cover,
+                errorBuilder: (_, __, ___) =>
+                    const Icon(Icons.broken_image_outlined),
+              ),
+      ),
     );
   }
 }

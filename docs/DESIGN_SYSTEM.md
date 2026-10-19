@@ -25,6 +25,15 @@ Verde não integra marca, botões, navegação, badges, progresso ou confirmaç�
 - Gestão: fachada de loja com cartão de pedido, na mesma família visual; fonte vetorial em `apps/gestao/web/icons/gogdely-lojas.svg`.
 - Cada PWA tem PNGs 192/512, versões maskable, ícone Apple de 180 px e favicon próprio. Os ícones são desenhos vetoriais internos, sem nova dependência de runtime ou material de terceiros.
 
+### Refinamento da prévia Gestão e Entregador — GOG-087/088/093
+
+- As prévias publicáveis usam tema claro inicial, barra superior branca e fundo uniforme, inclusive nas metatags PWA, para eliminar a faixa com contraste gradual vista no iPhone. O tema escuro segue selecionável pelo usuário; validar a aparência em PWA já instalado no aparelho antes de homologar.
+- Gestão compacta usa navegação inferior para Início, Pedidos, Cardápio e Financeiro; o menu lateral conserva os demais módulos. Indicadores se reorganizam em duas colunas no celular, com espaçamento próprio, e em quatro colunas no desktop. O gráfico de sete dias tem barras animadas, rótulos e seleção por toque.
+- Cardápio hospedado apresenta catálogo ilustrativo com busca, categoria e detalhes do produto; a edição persiste somente no laboratório local. Nunca sugerir que a prévia online altera uma loja real.
+- Financeiro separa **volume estimado de pedidos** de **valores recebidos**, mostra composição por forma pretendida de pagamento e o estado da conciliação. Sem provedor integrado, não há saldo, repasse ou extrato real. O filtro por canal afeta somente a composição exibida.
+- Entregador prioriza leitura rápida: resumo da jornada, status, endereço, distância e ação de rota em cartões espaçados. Rotas e entregas da prévia hospedada continuam ilustrativas.
+- Referências de princípios, sem reprodução de marca ou componentes: [Material 3 — app bars](https://m3.material.io/components/app-bars/), [Material 3 — papéis de superfície](https://m3.material.io/styles/color/the-color-system), [Carbon — dashboards](https://v10.carbondesignsystem.com/data-visualization/dashboards/) e [Stripe — distinção entre pagamentos e repasses](https://support.stripe.com/questions/stripe-reports). A marca e os componentes continuam próprios do GOGDELY.
+
 ## Princípios (GOG-087 a GOG-103)
 - Moderno, minimalista, profissional; temas claro, escuro e automático.
 - Paleta aprovada acima; identidade própria de cada estabelecimento dentro de estrutura comum.
