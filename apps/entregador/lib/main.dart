@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:gogdely_design_system/gogdely_design_system.dart';
 import 'package:gogdely_local_demo_api/gogdely_local_demo_api.dart';
+import 'online_delivery.dart';
 
 void main() => runApp(const EntregadorApp());
 
@@ -22,7 +23,10 @@ class _EntregadorAppState extends State<EntregadorApp> {
     theme: gogdelyTheme(Brightness.light),
     darkTheme: gogdelyTheme(Brightness.dark),
     themeMode: mode,
-    home: (defaultTargetPlatform == TargetPlatform.windows && !kIsWeb)
+    home: !localDemoEnabled && kIsWeb &&
+            const String.fromEnvironment('GOGDELY_API_BASE_URL').startsWith('https://')
+        ? const OnlineCourierShell()
+        : (defaultTargetPlatform == TargetPlatform.windows && !kIsWeb)
         ? Scaffold(
             backgroundColor: GogdelyColors.graphite,
             body: Center(

@@ -11,6 +11,8 @@ dependencies:
     path: ../../packages/design_system
   gogdely_local_demo_api:
     path: ../../packages/local_demo_api
+  http: ^1.5.0
+  supabase_flutter: ^2.18.3
 dev_dependencies:
   flutter_test:
     sdk: flutter
