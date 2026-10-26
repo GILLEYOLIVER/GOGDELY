@@ -31,7 +31,8 @@ navegação GPS nem contratação de entregas reais.
    verificar as contagens copiadas. Essa cópia interna é reversível para os
    dados fictícios, mas **não é um backup integral ou externo**. Antes de
    receber dados reais, criar um dump recuperável fora do projeto.
-3. Na primeira publicação do serviço de homologação pela branch `main`, a API
+3. Na primeira publicação do serviço de homologação pela branch `develop`
+   (atual) ou `main` (após a mudança da branch no Render), a API
    executa a verificação de destino, cria a cópia interna dos dados fictícios,
    aplica 0002 a 0007 e o seed do entregador em uma transação, registra
    versões e checksums e só então inicia. O processo se recusa a atuar em

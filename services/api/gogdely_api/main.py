@@ -33,7 +33,7 @@ from gogdely_api.web_seo import https_and_security_middleware, router as seo_rou
 async def lifespan(_app: FastAPI):
     # The free Render service cannot use a pre-deploy job. Block activation of
     # the new API until the isolated fictitious database has been migrated.
-    if os.environ.get("RENDER_SERVICE_ID") == "srv-dba163mq1p3s739u6k00" and os.environ.get("RENDER_GIT_BRANCH") == "main":
+    if os.environ.get("RENDER_SERVICE_ID") == "srv-dba163mq1p3s739u6k00" and os.environ.get("RENDER_GIT_BRANCH") in {"develop", "main"}:
         migrate_homologation()
     yield
 
