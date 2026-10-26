@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -33,15 +34,23 @@ class _OnlineManagementShellState extends State<OnlineManagementShell> {
   Map<String, dynamic>? _tableQr;
   int _tableNumber = 1;
   bool _loadingQr = false;
+  List<Map<String, dynamic>> _orders = [];
+  List<Map<String, dynamic>> _couriers = [];
+  Map<String, dynamic> _compensation = const {'mode': 'salary', 'fixed_cents': 0, 'percent': 0};
+  Timer? _ordersTimer;
 
   @override
   void initState() {
     super.initState();
     _bootstrap();
+    _ordersTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      if (_branch != null && !_busy) _loadOperations();
+    });
   }
 
   @override
   void dispose() {
+    _ordersTimer?.cancel();
     _email.dispose();
     _password.dispose();
     super.dispose();
@@ -148,6 +157,7 @@ class _OnlineManagementShellState extends State<OnlineManagementShell> {
         _branch = {...branch, 'slug': catalog['slug']};
         _items = (catalog['items'] as List<dynamic>).cast<Map<String, dynamic>>();
       });
+      await _loadOperations();
       try {
         final settings = await _request(
           '/api/v1/management/tenants/$tenant/branches/$id/table-payment',
@@ -165,6 +175,156 @@ class _OnlineManagementShellState extends State<OnlineManagementShell> {
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  Future<void> _loadOperations() async {
+    final branch = _branch;
+    if (branch == null) return;
+    final path = '/api/v1/management/tenants/${branch['tenant_id']}'
+        '/branches/${branch['branch_id']}';
+    try {
+      final orders = await _request('$path/orders') as List<dynamic>;
+      if (mounted && _branch?['branch_id'] == branch['branch_id']) {
+        setState(() => _orders = orders.cast<Map<String, dynamic>>());
+      }
+      if ({'owner', 'manager'}.contains(branch['role'])) {
+        final couriers = await _request('$path/couriers') as List<dynamic>;
+        final pay = await _request('$path/compensation') as Map<String, dynamic>;
+        if (mounted && _branch?['branch_id'] == branch['branch_id']) {
+          setState(() { _couriers = couriers.cast<Map<String, dynamic>>();
+            _compensation = pay; });
+        }
+      }
+    } catch (_) {
+      // The catalog remains available if the test-order module is not deployed.
+    }
+  }
+
+  Future<void> _advanceOrder(Map<String, dynamic> order) async {
+    if (_branch == null) return;
+    final before = order['status'] as String;
+    final next = switch (before) {
+      'created' => 'accepted',
+      'accepted' => 'preparing',
+      'preparing' => 'ready',
+      'ready' when order['channel'] != 'delivery' => 'completed',
+      _ => null,
+    };
+    final dispatch = before == 'ready' && order['channel'] == 'delivery';
+    if (next == null && !dispatch) return;
+    setState(() { _busy = true; _error = null; });
+    try {
+      final base = '/api/v1/management/tenants/${_branch!['tenant_id']}'
+          '/branches/${_branch!['branch_id']}/orders/${order['order_id']}';
+      await _request(dispatch ? '$base/dispatch' : '$base/status',
+        method: dispatch ? 'POST' : 'PATCH',
+        body: dispatch ? null : {'status': next});
+      await _loadOperations();
+    } catch (_) {
+      if (mounted) setState(() => _error = 'Não foi possível atualizar o pedido fictício.');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _linkCourier() async {
+    if (_branch == null) return;
+    final email = TextEditingController();
+    final result = await showDialog<String>(context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Vincular entregador de teste'),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          const Text('A conta deve existir e estar confirmada no Supabase Auth.'),
+          TextField(controller: email, keyboardType: TextInputType.emailAddress,
+            decoration: const InputDecoration(labelText: 'E-mail do entregador')),
+        ]),
+        actions: [TextButton(onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar')),
+          FilledButton(onPressed: () => Navigator.pop(context, email.text.trim()),
+            child: const Text('Vincular'))],
+      ));
+    email.dispose();
+    if (result == null || result.isEmpty || _branch == null) return;
+    setState(() { _busy = true; _error = null; });
+    try {
+      await _request('/api/v1/management/tenants/${_branch!['tenant_id']}'
+          '/branches/${_branch!['branch_id']}/couriers',
+          method: 'PUT', body: {'email': result, 'active': true});
+      await _loadOperations();
+    } catch (_) {
+      if (mounted) setState(() => _error = 'Entregador não encontrado ou vínculo indisponível.');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _setCourierActive(Map<String, dynamic> courier, bool active) async {
+    if (_branch == null) return;
+    setState(() { _busy = true; _error = null; });
+    try {
+      await _request('/api/v1/management/tenants/${_branch!['tenant_id']}'
+          '/branches/${_branch!['branch_id']}/couriers',
+          method: 'PUT', body: {'email': courier['email'], 'active': active});
+      await _loadOperations();
+    } catch (_) {
+      if (mounted) setState(() => _error = 'Não foi possível alterar o entregador.');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Future<void> _editCompensation() async {
+    if (_branch == null) return;
+    var mode = _compensation['mode'] as String? ?? 'salary';
+    final fixed = TextEditingController(text: '${(_compensation['fixed_cents'] as num? ?? 0) / 100}');
+    final percent = TextEditingController(text: '${_compensation['percent'] ?? 0}');
+    final result = await showDialog<Map<String, dynamic>>(context: context,
+      builder: (context) => StatefulBuilder(builder: (context, update) => AlertDialog(
+        title: const Text('Pagamento fictício por entrega'),
+        content: Column(mainAxisSize: MainAxisSize.min, children: [
+          DropdownButtonFormField<String>(initialValue: mode,
+            decoration: const InputDecoration(labelText: 'Modelo'),
+            items: const [
+              DropdownMenuItem(value: 'fixed', child: Text('Valor fixo')),
+              DropdownMenuItem(value: 'percent', child: Text('Percentual do frete')),
+              DropdownMenuItem(value: 'salary', child: Text('Contratado mensalmente · R\$ 0 no app')),
+            ], onChanged: (value) => update(() => mode = value ?? 'salary')),
+          if (mode == 'fixed') TextField(controller: fixed,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(labelText: 'Valor por entrega (R\$)')),
+          if (mode == 'percent') TextField(controller: percent,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(labelText: 'Percentual do frete')),
+        ]),
+        actions: [TextButton(onPressed: () => Navigator.pop(context),
+            child: const Text('Cancelar')),
+          FilledButton(onPressed: () {
+            final cents = ((double.tryParse(fixed.text.replaceAll(',', '.')) ?? -1) * 100).round();
+            final rate = double.tryParse(percent.text.replaceAll(',', '.')) ?? -1;
+            if (mode == 'fixed' && cents < 0 || mode == 'percent' && (rate < 0 || rate > 100)) return;
+            Navigator.pop(context, {'mode': mode,
+              'fixed_cents': mode == 'fixed' ? cents : 0,
+              'percent': mode == 'percent' ? rate : 0});
+          }, child: const Text('Salvar'))],
+      )));
+    fixed.dispose(); percent.dispose();
+    if (result == null || _branch == null) return;
+    setState(() { _busy = true; _error = null; });
+    try {
+      await _request('/api/v1/management/tenants/${_branch!['tenant_id']}'
+          '/branches/${_branch!['branch_id']}/compensation',
+          method: 'PUT', body: result);
+      await _loadOperations();
+    } catch (_) {
+      if (mounted) setState(() => _error = 'Não foi possível salvar a remuneração fictícia.');
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  String _money(Object? cents) {
+    final value = cents is num ? cents : 0;
+    return 'R\$ ${(value / 100).toStringAsFixed(2).replaceAll('.', ',')}';
   }
 
   Future<void> _loadTableQr() async {
@@ -294,7 +454,7 @@ class _OnlineManagementShellState extends State<OnlineManagementShell> {
             ]),
           )),
           if (signedIn) ...[
-            Text('Cardápio', style: Theme.of(context).textTheme.headlineMedium),
+            Text('Sua operação', style: Theme.of(context).textTheme.headlineMedium),
             const SizedBox(height: 12),
             if (_stores.isEmpty) const Card(child: Padding(
               padding: EdgeInsets.all(20), child: Text('Sua conta ainda não foi vinculada a uma loja.'),
@@ -321,6 +481,74 @@ class _OnlineManagementShellState extends State<OnlineManagementShell> {
             if (_busy) const LinearProgressIndicator(),
             if (_branch != null) ...[
               const SizedBox(height: 12),
+              Card(child: Padding(padding: const EdgeInsets.all(16), child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  Text('Painel de teste', style: Theme.of(context).textTheme.titleLarge),
+                  const Text('Dados fictícios da loja. Nenhuma venda é cobrada.'),
+                  const SizedBox(height: 12),
+                  Wrap(spacing: 18, runSpacing: 10, children: [
+                    Text('${_orders.length} pedidos'),
+                    Text('${_orders.where((order) => order['status'] == 'completed').length} concluídos'),
+                    Text('Total concluído: ${_money(_orders.where((order) => order['status'] == 'completed').fold<int>(0, (sum, order) => sum + (order['total_cents'] as int? ?? 0)))}'),
+                  ]),
+                  TextButton.icon(onPressed: _loadOperations,
+                    icon: const Icon(Icons.refresh), label: const Text('Atualizar pedidos')),
+                ],
+              ))),
+              const SizedBox(height: 16),
+              Text('Pedidos', style: Theme.of(context).textTheme.titleLarge),
+              const SizedBox(height: 8),
+              if (_orders.isEmpty) const Card(child: Padding(
+                padding: EdgeInsets.all(16),
+                child: Text('Nenhum pedido fictício recebido ainda. Abra o Cliente e escolha produtos desta loja.'),
+              )),
+              for (final order in _orders) Card(
+                margin: const EdgeInsets.only(bottom: 10),
+                child: Padding(padding: const EdgeInsets.all(12), child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('Pedido #${(order['order_id'] as String).substring(0, 8)}',
+                      style: Theme.of(context).textTheme.titleMedium),
+                    Text('${order['channel']} · ${order['status']} · ${_money(order['total_cents'])}'),
+                    if (order['table_code'] != null) Text('Mesa ${order['table_code']}'),
+                    if ({'created', 'accepted', 'preparing', 'ready'}.contains(order['status']) &&
+                        (order['status'] != 'ready' || order['channel'] != 'delivery' ||
+                         {'owner', 'manager'}.contains(_branch!['role'])))
+                      Align(alignment: Alignment.centerRight, child: FilledButton(
+                        onPressed: _busy ? null : () => _advanceOrder(order),
+                        child: Text(switch (order['status']) {
+                          'created' => 'Aceitar',
+                          'accepted' => 'Iniciar preparo',
+                          'preparing' => 'Marcar pronto',
+                          'ready' when order['channel'] == 'delivery' => 'Oferecer ao entregador',
+                          _ => 'Concluir',
+                        }),
+                      )),
+                  ],
+                )),
+              ),
+              if ({'owner', 'manager'}.contains(_branch!['role'])) ...[
+                const SizedBox(height: 16),
+                Card(child: Padding(padding: const EdgeInsets.all(16),
+                  child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                    Text('Entregadores da loja', style: Theme.of(context).textTheme.titleLarge),
+                    const Text('Vincule uma conta confirmada para receber pedidos fictícios disponíveis.'),
+                    TextButton.icon(onPressed: _busy ? null : _linkCourier,
+                      icon: const Icon(Icons.person_add_alt), label: const Text('Vincular entregador')),
+                    for (final courier in _couriers)
+                      SwitchListTile(contentPadding: EdgeInsets.zero,
+                        title: Text(courier['email'] as String? ?? ''),
+                        subtitle: Text(courier['active'] == true ? 'Ativo' : 'Inativo'),
+                        value: courier['active'] == true,
+                        onChanged: _busy ? null : (active) => _setCourierActive(courier, active)),
+                    const Divider(),
+                    Text('Remuneração: ${_compensation['mode'] == 'fixed' ? _money(_compensation['fixed_cents']) + ' por entrega' : _compensation['mode'] == 'percent' ? '${_compensation['percent']}% do frete' : 'salário mensal · R\$ 0 no app'}'),
+                    TextButton.icon(onPressed: _busy ? null : _editCompensation,
+                      icon: const Icon(Icons.tune), label: const Text('Configurar remuneração')),
+                  ]))),
+              ],
+              const SizedBox(height: 16),
+              Text('Cardápio', style: Theme.of(context).textTheme.titleLarge),
+              const SizedBox(height: 8),
               Card(child: Padding(padding: const EdgeInsets.all(12), child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text('Pedidos nas mesas', style: Theme.of(context).textTheme.titleLarge),
@@ -341,8 +569,7 @@ class _OnlineManagementShellState extends State<OnlineManagementShell> {
                 crossAxisAlignment: CrossAxisAlignment.start, children: [
                   Text('Link da mesa', style: Theme.of(context).textTheme.titleLarge),
                   const SizedBox(height: 6),
-                  const Text('O QR abre o cardápio desta loja e identifica a mesa. '
-                      'Pedidos online ainda não estão habilitados.'),
+                  const Text('O QR abre esta loja, identifica a mesa e permite pedidos fictícios.'),
                   const SizedBox(height: 12),
                   Wrap(spacing: 12, runSpacing: 8, crossAxisAlignment: WrapCrossAlignment.center,
                     children: [

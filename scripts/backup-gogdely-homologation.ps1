@@ -55,7 +55,11 @@ $settings = @{
 try {
     foreach ($key in $settings.Keys) {
         $oldEnv[$key] = [Environment]::GetEnvironmentVariable($key, 'Process')
-        [Environment]::SetEnvironmentVariable($key, $settings[$key], 'Process')
+        if ($null -eq $settings[$key]) {
+            Remove-Item -LiteralPath ('Env:' + $key) -ErrorAction SilentlyContinue
+        } else {
+            [Environment]::SetEnvironmentVariable($key, $settings[$key], 'Process')
+        }
     }
 
     Write-Host "Projeto: GOGDELY Homologacao ($projectRef); esquema: gogdely."
@@ -65,9 +69,13 @@ try {
 
     $listing = @(& $pgRestore --list $temporary)
     if ($LASTEXITCODE -ne 0) { throw "pg_restore nao conseguiu ler o arquivo (codigo $LASTEXITCODE)." }
-    $tableCount = @($listing | Where-Object { $_ -match '^\d+;.* TABLE gogdely ' }).Count
-    if ($tableCount -ne 8) {
-        throw "O arquivo nao contem as oito tabelas esperadas do esquema gogdely (encontradas: $tableCount)."
+    $tableNames = @('tenants', 'branches', 'memberships', 'membership_branches',
+        'menu_items', 'orders', 'order_items', 'order_events')
+    foreach ($tableName in $tableNames) {
+        $pattern = '^\d+;.* TABLE gogdely ' + [regex]::Escape($tableName) + '\s'
+        if (-not @($listing | Where-Object { $_ -match $pattern }).Count) {
+            throw "O arquivo nao contem a tabela de base esperada: $tableName."
+        }
     }
     if ((Get-Item -LiteralPath $temporary).Length -eq 0) { throw 'O arquivo de backup esta vazio.' }
 
@@ -80,7 +88,11 @@ try {
 }
 finally {
     foreach ($key in $settings.Keys) {
-        [Environment]::SetEnvironmentVariable($key, $oldEnv[$key], 'Process')
+        if ($null -eq $oldEnv[$key]) {
+            Remove-Item -LiteralPath ('Env:' + $key) -ErrorAction SilentlyContinue
+        } else {
+            [Environment]::SetEnvironmentVariable($key, $oldEnv[$key], 'Process')
+        }
     }
     if (Test-Path -LiteralPath $temporary -PathType Leaf) {
         Remove-Item -LiteralPath $temporary -Force

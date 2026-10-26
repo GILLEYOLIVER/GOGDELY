@@ -1,5 +1,6 @@
 -- GOG-016/074, issue #50. Apply after 0002 and 0003, confirmed schema,
--- recoverable backup, and a tested rollback path. No client-side DB writes.
+-- verified backup or isolated fictitious snapshot, and a tested rollback path.
+-- No client-side DB writes.
 BEGIN;
 
 CREATE TABLE gogdely.menu_item_events (

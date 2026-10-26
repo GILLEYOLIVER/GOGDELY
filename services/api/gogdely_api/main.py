@@ -2,6 +2,7 @@
 
 import logging
 import os
+from contextlib import asynccontextmanager
 from pathlib import Path
 from uuid import UUID
 
@@ -14,6 +15,7 @@ from pydantic import BaseModel
 from gogdely_api.auth import AuthenticatedUser, authenticated_user, _supabase_host
 from gogdely_api.config import config
 from gogdely_api.db_health import configured_database_url, foundation_ready
+from gogdely_api.homologation_migrations import main as migrate_homologation
 from gogdely_api.local_orders import router as local_router
 from gogdely_api.master_local import router as master_router
 from gogdely_api.master_admin import router as master_admin_router
@@ -22,11 +24,21 @@ from gogdely_api.memberships import (
     AuthorizedBranch, StoreMembership, authorized_branch, list_memberships,
 )
 from gogdely_api.online_catalog import router as online_catalog_router
+from gogdely_api.online_demo_orders import router as online_demo_orders_router
 from gogdely_api.online_tables import router as online_tables_router
 from gogdely_api.table_settings import router as table_settings_router
 from gogdely_api.web_seo import https_and_security_middleware, router as seo_router
 
-app = FastAPI(title="GOGDELY API", version="0.1.0", docs_url="/docs")
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    # The free Render service cannot use a pre-deploy job. Block activation of
+    # the new API until the isolated fictitious database has been migrated.
+    if os.environ.get("RENDER_SERVICE_ID") == "srv-dba163mq1p3s739u6k00" and os.environ.get("RENDER_GIT_BRANCH") == "main":
+        migrate_homologation()
+    yield
+
+
+app = FastAPI(title="GOGDELY API", version="0.1.0", docs_url="/docs", lifespan=lifespan)
 logger = logging.getLogger(__name__)
 app.add_middleware(
     CORSMiddleware,
@@ -41,6 +53,7 @@ app.include_router(master_router)
 app.include_router(online_master_router)
 app.include_router(master_admin_router)
 app.include_router(online_catalog_router)
+app.include_router(online_demo_orders_router)
 app.include_router(online_tables_router)
 app.include_router(table_settings_router)
 app.middleware("http")(https_and_security_middleware)

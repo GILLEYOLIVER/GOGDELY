@@ -27,6 +27,8 @@ void main() {
     )));
     await tester.pump();
     expect(find.textContaining('Pizzaria Napoli'), findsWidgets);
+    await tester.ensureVisible(find.text('Ver rota e pedido'));
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Ver rota e pedido'));
     await tester.pump();
     expect(find.text('Pedido #910 · Pizzaria Napoli'), findsOneWidget);

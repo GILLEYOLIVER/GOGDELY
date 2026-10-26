@@ -67,7 +67,8 @@ void main() {
     expect(find.text('Pizza'), findsOneWidget);
     expect(find.text('Suco'), findsOneWidget);
     expect(find.text('Oculto'), findsNothing);
-    expect(find.textContaining('Pedidos e pagamentos online ainda não'), findsOneWidget);
+    expect(find.textContaining('Escolha produtos para enviar um pedido fictício'),
+        findsOneWidget);
 
     await tester.enterText(find.byType(TextField), 'pizza');
     await tester.pump();
@@ -88,6 +89,47 @@ void main() {
     await tester.pump();
     expect(called, isFalse);
     expect(find.text('Link da loja inválido.'), findsOneWidget);
+    client.close();
+  });
+
+  testWidgets('table order sends product IDs and shows server total', (tester) async {
+    Map<String, dynamic>? submitted;
+    final client = MockClient((request) async {
+      if (request.method == 'POST') {
+        submitted = jsonDecode(request.body) as Map<String, dynamic>;
+        return http.Response(jsonEncode({
+          'order_id': '00000000-0000-4000-8000-000000000010',
+          'status': 'created', 'total_cents': 3200,
+        }), 201);
+      }
+      return http.Response(jsonEncode({
+        'name': 'Loja A',
+        'items': [{
+          'item_id': '00000000-0000-4000-8000-000000000001',
+          'name': 'Pizza', 'description': 'Queijo',
+          'category_name': 'Pizzas', 'price_cents': 3200,
+          'available': true,
+        }],
+      }), 200);
+    });
+    await tester.pumpWidget(MaterialApp(home: OnlineCatalogScreen(
+      slug: 'loja-a', tableNumber: 3, apiBaseUrl: 'https://api.example.test',
+      client: client,
+    )));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Adicionar Pizza'));
+    await tester.pump();
+    await tester.ensureVisible(find.text('Fazer pedido fictício'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Fazer pedido fictício'));
+    await tester.pumpAndSettle();
+    expect(submitted?['channel'], 'table');
+    expect(submitted?['table_number'], 3);
+    expect((submitted?['items'] as List).single['item_id'],
+        '00000000-0000-4000-8000-000000000001');
+    expect(submitted?.containsKey('payment_state'), isFalse);
+    expect(find.textContaining('Pedido de teste #00000000'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
     client.close();
   });
 }
