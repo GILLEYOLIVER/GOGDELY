@@ -1,5 +1,6 @@
 -- GOG-017/041/042/052: tenant-scoped courier test flow.
--- Apply only after 0002..0006, verified backup and schema comparison.
+-- Apply only after 0002..0006, verified backup (or isolated fictitious
+-- homologation snapshot) and schema comparison.
 -- No payments or real compensation are processed by these tables.
 BEGIN;
 

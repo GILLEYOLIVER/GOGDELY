@@ -23,9 +23,14 @@ navegação GPS nem contratação de entregas reais.
 ## Ordem para ativar no banco
 
 1. Confirmar o projeto e comparar o esquema atual em modo somente leitura.
-2. Criar um `pg_dump` recuperável do projeto de homologação e confirmar com
-   `pg_restore --list`. A senha deve ser digitada pelo proprietário diretamente
-   no terminal; não copiá-la para este documento.
+2. Para o teste com dados inteiramente fictícios, executar pelo SQL Editor
+   `database/checks/2026-10-25_homologacao_preflight.sql` e conferir os
+   resultados. Se coincidirem com 1 tenant, 1 filial, 1 vínculo, 12 itens,
+   0 pedidos, 0 políticas e 8 tabelas, executar
+   `database/checks/2026-10-25_homologacao_internal_snapshot.sql` e
+   verificar as contagens copiadas. Essa cópia interna é reversível para os
+   dados fictícios, mas **não é um backup integral ou externo**. Antes de
+   receber dados reais, criar um dump recuperável fora do projeto.
 3. Aplicar as migrations versionadas 0002, 0003, 0004, 0005, 0006 e 0007,
    nesta ordem, cada uma em transação, após conferir seu conteúdo. A 0001 já
    está instalada no projeto. O Render não aplica migrations automaticamente.
@@ -69,6 +74,6 @@ entrega têm RLS forçada e nenhum acesso direto a `anon` ou `authenticated`.
 ## Estado em 2026-10-25
 
 O seed da loja e dos produtos está no Supabase. As migrations 0002 a 0007,
-o vínculo de entregador, o backup verificado e a publicação deste fluxo ainda
+o vínculo de entregador, a checagem e cópia interna verificadas e a publicação deste fluxo ainda
 dependem de execução e checagem. O aplicativo hospedado atualmente não prova
 o fluxo descrito neste documento.

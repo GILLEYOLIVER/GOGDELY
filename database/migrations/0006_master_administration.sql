@@ -1,5 +1,7 @@
 -- GOG-004/025/082/096: audited platform administration in homologation.
--- Apply only after a verified backup and schema comparison. Never expose this
+-- Apply only after schema comparison and a verified backup; the isolated
+-- fictitious homologation snapshot is an accepted test-only alternative.
+-- Never expose this
 -- schema to the Data API or grant access to anon/authenticated.
 BEGIN;
 

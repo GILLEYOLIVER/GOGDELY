@@ -1,4 +1,5 @@
--- GOG-016/074, issue #49. Apply after 0002, schema review and recoverable backup.
+-- GOG-016/074, issue #49. Apply after 0002 and schema review. For isolated
+-- fictitious homologation, verify the internal snapshot before this migration.
 -- The gogdely schema stays outside the Supabase Data API. The FastAPI server
 -- assumes anon/authenticated only inside a transaction; no write grant here.
 BEGIN;

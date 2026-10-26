@@ -1,5 +1,6 @@
 -- GOG-043/074: tenant-scoped preference for payment on table orders.
--- Apply only after schema review and a recoverable backup. This preference
+-- Apply only after schema review and a verified backup or isolated fictitious
+-- snapshot. This preference
 -- never confirms, captures, or settles a payment without a provider.
 BEGIN;
 

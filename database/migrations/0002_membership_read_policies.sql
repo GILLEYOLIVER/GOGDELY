@@ -1,5 +1,6 @@
 -- GOG-074/076, issue #39: read-only tenant and branch membership policies.
--- Apply only after reviewing the installed 0001 schema and taking a backup.
+-- Apply after schema review and a verified backup. For the isolated fictitious
+-- homologation project, the reviewed internal snapshot is an accepted test-only alternative.
 -- No write grants are added. Business mutations remain the FastAPI authority.
 BEGIN;
 
