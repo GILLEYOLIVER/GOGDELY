@@ -1,6 +1,6 @@
 # Migrações do GOGDELY
 
-As migrações numeradas são a fonte do esquema PostgreSQL. O projeto `GOGDELY Homologação` (antes `GOGDELY Testes`) é separado dos projetos de outros produtos e não contém dados reais. Os arquivos não são executados automaticamente pelo deploy do Render.
+As migrações numeradas são a fonte do esquema PostgreSQL. O projeto `GOGDELY Homologação` (antes `GOGDELY Testes`) é separado dos projetos de outros produtos e não contém dados reais. Na publicação pela `main`, somente o serviço gratuito de homologação identificado em `gogdely_api/homologation_migrations.py` aplica as migrations pendentes antes de iniciar a API, com destino fixo, cópia interna dos dados fictícios, transação, registro de versão e checksum. Outros ambientes não executam este fluxo. Produção exige backup externo recuperável e etapa de migração separada.
 
 ## Ordem
 
@@ -9,7 +9,7 @@ As migrações numeradas são a fonte do esquema PostgreSQL. O projeto `GOGDELY 
 3. `0002_membership_read_policies.sql`: concede apenas leitura autenticada das quatro tabelas de vínculo. Ainda requer revisão independente, backup, comparação do esquema instalado e validação no projeto de homologação antes de aplicação.
 4. `0006_master_administration.sql`: cria configuração de comissão e auditoria imutável do Master. Depende da fundação `0001`; aplicar somente após backup verificável, comparação do esquema e revisão do plano de reversão. O cadastro nasce em `draft`, o vínculo de responsável exige conta de e-mail já confirmada, e a ativação exige ao menos um owner. Não envia convites nem processa pagamentos.
 
-Cada arquivo deve ser executado uma única vez, em ordem, no projeto de **homologação** e registrado no controle de migrações quando o fluxo automatizado for adotado. Antes de aplicar, confirmar projeto, ambiente, versão do Git e revisão técnica. Não executar no banco de outro produto nem em produção.
+Cada arquivo é executado uma única vez, em ordem, no projeto de **homologação** e registrado em `gogdely.schema_migrations`. Antes de integrar o arquivo à `main`, confirmar projeto, ambiente, versão do Git e revisão técnica. Não executar no banco de outro produto nem em produção.
 
 ## Verificação
 

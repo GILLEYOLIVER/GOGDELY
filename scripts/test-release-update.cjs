@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const vm = require('node:vm');
 
-const apps = ['cliente', 'gestao', 'entregador'];
+const apps = ['cliente', 'gestao', 'entregador', 'master'];
 const oldSha = 'a'.repeat(40);
 const newSha = 'b'.repeat(40);
 
@@ -14,9 +14,8 @@ async function checkApp(app) {
   );
   const listeners = {};
   const storage = new Map();
-  const session = new Map();
   let remoteSha = oldSha;
-  let reloads = 0;
+  const navigations = [];
   vm.runInNewContext(source, {
     document: {
       visibilityState: 'visible',
@@ -26,28 +25,29 @@ async function checkApp(app) {
     window: {
       addEventListener: (name, handler) => { listeners[name] = handler; },
       setInterval: () => 1,
-      location: { reload: () => { reloads += 1; } },
+      location: {
+        href: `https://example.test/${app}/`,
+        replace: (url) => { navigations.push(url); },
+      },
     },
     localStorage: {
       getItem: (key) => storage.get(key) ?? null,
       setItem: (key, value) => storage.set(key, value),
     },
-    sessionStorage: {
-      getItem: (key) => session.get(key) ?? null,
-      setItem: (key, value) => session.set(key, value),
-    },
+    URL,
     fetch: async (_url, options) => {
       assert.equal(options.cache, 'no-store');
       return { ok: true, json: async () => ({ commit: remoteSha }) };
     },
   });
   await listeners.pageshow();
-  assert.equal(reloads, 0);
+  assert.equal(navigations.length, 0);
   remoteSha = newSha;
   await listeners.visibilitychange();
-  assert.equal(reloads, 1);
+  assert.equal(navigations.length, 1);
+  assert.equal(new URL(navigations[0]).searchParams.get('gogdely_release'), newSha);
   await listeners.visibilitychange();
-  assert.equal(reloads, 1);
+  assert.equal(navigations.length, 1);
 }
 
 Promise.all(apps.map(checkApp)).then(

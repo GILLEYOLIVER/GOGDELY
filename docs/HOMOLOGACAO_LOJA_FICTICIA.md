@@ -31,11 +31,16 @@ navegação GPS nem contratação de entregas reais.
    verificar as contagens copiadas. Essa cópia interna é reversível para os
    dados fictícios, mas **não é um backup integral ou externo**. Antes de
    receber dados reais, criar um dump recuperável fora do projeto.
-3. Aplicar as migrations versionadas 0002, 0003, 0004, 0005, 0006 e 0007,
-   nesta ordem, cada uma em transação, após conferir seu conteúdo. A 0001 já
-   está instalada no projeto. O Render não aplica migrations automaticamente.
-4. Executar o seed `2026-10-25_entrega_ficticia.sql`. O seed da loja e dos
-   produtos já foi aplicado em 2026-10-25; ele é idempotente.
+3. Na primeira publicação do serviço de homologação pela branch `main`, a API
+   executa a verificação de destino, cria a cópia interna dos dados fictícios,
+   aplica 0002 a 0007 e o seed do entregador em uma transação, registra
+   versões e checksums e só então inicia. O processo se recusa a atuar em
+   qualquer outro projeto, serviço, branch ou ambiente. Migrações futuras
+   numeradas e revisadas seguem a mesma ordem; arquivos já aplicados não
+   podem ser alterados. Falha em qualquer etapa interrompe a nova publicação.
+   A 0001 já está instalada neste projeto.
+4. O seed da loja e dos produtos já foi aplicado em 2026-10-25; o seed do
+   entregador é aplicado apenas na primeira publicação válida.
 5. Conferir as tabelas, políticas RLS, permissões e contagem dos dados apenas
    neste tenant antes de publicar a API.
 6. Publicar API e PWAs com o mesmo commit e conferir `/ready`, `version.json`,
@@ -73,7 +78,17 @@ entrega têm RLS forçada e nenhum acesso direto a `anon` ou `authenticated`.
 
 ## Estado em 2026-10-25
 
-O seed da loja e dos produtos está no Supabase. As migrations 0002 a 0007,
-o vínculo de entregador, a checagem e cópia interna verificadas e a publicação deste fluxo ainda
-dependem de execução e checagem. O aplicativo hospedado atualmente não prova
-o fluxo descrito neste documento.
+O seed da loja e dos produtos está no Supabase. A automação descrita acima
+está preparada no código, mas as migrations 0002 a 0007, o vínculo de
+entregador e a publicação pela `main` ainda dependem de execução e checagem.
+O aplicativo hospedado atualmente não prova o fluxo descrito neste documento.
+
+## Limites da automação
+
+A cópia interna é somente uma proteção para esta base fictícia. Antes de
+receber lojas ou pedidos reais, é obrigatório ter backup recuperável fora do
+banco e um processo de migração separado da inicialização do servidor. O
+Render gratuito não disponibiliza comando pré-deploy; a inicialização
+bloqueante é exclusiva desta homologação e deste serviço. A publicação do PWA
+estático é independente da API, então a igualdade de SHAs e o catálogo devem
+ser conferidos após ambos os deploys.
