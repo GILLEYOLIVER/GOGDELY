@@ -3,8 +3,14 @@
 import ssl
 
 import pg8000
+import scramp
 
 from gogdely_api import db_health
+
+
+def test_pg8000_scramp_channel_binding_api_is_available() -> None:
+    # pg8000 1.31.5 uses this API; scramp 1.5.0 removed it.
+    assert callable(scramp.make_channel_binding)
 
 
 def test_rejects_invalid_database_urls() -> None:
