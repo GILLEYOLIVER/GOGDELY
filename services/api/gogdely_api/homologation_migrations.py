@@ -33,7 +33,7 @@ def assert_target(database_url: str, environ: dict[str, str]) -> None:
     parsed = urlsplit(database_url)
     if not (
         environ.get("RENDER") == "true"
-        and environ.get("RENDER_GIT_BRANCH") == "main"
+        and environ.get("RENDER_GIT_BRANCH") in {"develop", "main"}
         and environ.get("RENDER_SERVICE_ID") == EXPECTED_SERVICE
         and environ.get("GOGDELY_ENV") in {"testes", "homologacao"}
         and parsed.scheme in {"postgres", "postgresql"}

@@ -1,6 +1,6 @@
 # Migrações do GOGDELY
 
-As migrações numeradas são a fonte do esquema PostgreSQL. O projeto `GOGDELY Homologação` (antes `GOGDELY Testes`) é separado dos projetos de outros produtos e não contém dados reais. Na publicação pela `main`, somente o serviço gratuito de homologação identificado em `gogdely_api/homologation_migrations.py` aplica as migrations pendentes antes de iniciar a API, com destino fixo, cópia interna dos dados fictícios, transação, registro de versão e checksum. Outros ambientes não executam este fluxo. Produção exige backup externo recuperável e etapa de migração separada.
+As migrações numeradas são a fonte do esquema PostgreSQL. O projeto `GOGDELY Homologação` (antes `GOGDELY Testes`) é separado dos projetos de outros produtos e não contém dados reais. Na publicação da `develop` atual ou da futura `main`, somente o serviço gratuito de homologação identificado em `gogdely_api/homologation_migrations.py` aplica as migrations pendentes antes de iniciar a API, com destino fixo, cópia interna dos dados fictícios, transação, registro de versão e checksum. Outros ambientes não executam este fluxo. Produção exige backup externo recuperável e etapa de migração separada.
 
 ## Ordem
 

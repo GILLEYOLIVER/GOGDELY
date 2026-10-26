@@ -20,8 +20,9 @@ ENV = {
 
 def test_migration_target_requires_exact_branch_service_and_project():
     assert_target(URL, ENV)
+    assert_target(URL, ENV | {"RENDER_GIT_BRANCH": "develop"})
     for changed in (
-        {"RENDER_GIT_BRANCH": "develop"},
+        {"RENDER_GIT_BRANCH": "feature/unreviewed"},
         {"RENDER_SERVICE_ID": "srv-unrelated"},
         {"GOGDELY_ENV": "production"},
     ):
