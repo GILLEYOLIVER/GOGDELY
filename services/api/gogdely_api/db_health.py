@@ -94,7 +94,7 @@ def foundation_ready(database_url: str) -> bool:
         safe_code = code if isinstance(code, str) and re.fullmatch(r"[0-9A-Z]{5}", code) else "unknown"
         logger.warning("database readiness SQLSTATE: %s", safe_code)
         return False
-    except (OSError, ValueError, pg8000.Error) as exc:
+    except (OSError, ValueError, AttributeError, pg8000.Error) as exc:
         # Never log exception text: drivers can include connection details.
         logger.warning("database readiness connection failed: %s", type(exc).__name__)
         return False
