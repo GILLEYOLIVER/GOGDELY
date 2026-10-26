@@ -1,0 +1,18 @@
+.env
+.env.*
+!.env.example
+# Local Master credentials supplied by the owner must never enter Git.
+apps/gestao/acessos
+.dart_tool/
+.flutter-plugins*
+build/
+__pycache__/
+.venv/
+*.egg-info/
+*.db
+*.sqlite
+.local/
+*.key
+*.pem
+*.iml
+**/.vscode/settings.json

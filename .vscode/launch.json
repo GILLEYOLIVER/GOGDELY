@@ -1,0 +1,108 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "GOGDELY • Cliente + Gestão + Entregador (F5)",
+      "type": "dart",
+      "request": "launch",
+      "cwd": "${workspaceFolder}/apps/cliente",
+      "program": "lib/main.dart",
+      "deviceId": "windows",
+      "preLaunchTask": "GOGDELY: iniciar API e outros aplicativos",
+      "postDebugTask": "GOGDELY: encerrar aplicativos iniciados pelo F5",
+      "toolArgs": ["--dart-define=GOGDELY_LAB=true", "--dart-define=GOGDELY_LOCAL_API=true"]
+    },
+    {
+      "name": "GOGDELY Cliente • somente esta janela",
+      "type": "dart",
+      "request": "launch",
+      "cwd": "${workspaceFolder}/apps/cliente",
+      "program": "lib/main.dart",
+      "deviceId": "windows",
+      "toolArgs": ["--dart-define=GOGDELY_LAB=true", "--dart-define=GOGDELY_LOCAL_API=true"]
+    },
+    {
+      "name": "GOGDELY Entregador • Windows",
+      "type": "dart",
+      "request": "launch",
+      "cwd": "${workspaceFolder}/apps/entregador",
+      "program": "lib/main.dart",
+      "deviceId": "windows",
+      "toolArgs": ["--dart-define=GOGDELY_LOCAL_API=true"]
+    },
+    {
+      "name": "GOGDELY Loja / Restaurante • Gestão (Windows)",
+      "type": "dart",
+      "request": "launch",
+      "cwd": "${workspaceFolder}/apps/gestao",
+      "program": "lib/main.dart",
+      "deviceId": "windows",
+      "toolArgs": ["--dart-define=GOGDELY_LOCAL_API=true"]
+    },
+    {
+      "name": "GOGDELY Master • Plataforma (Windows)",
+      "type": "dart",
+      "request": "launch",
+      "cwd": "${workspaceFolder}/apps/master",
+      "program": "lib/main.dart",
+      "deviceId": "windows",
+      "toolArgs": ["--dart-define=GOGDELY_LOCAL_API=true"]
+    },
+    {
+      "name": "GOGDELY API • Banco local",
+      "type": "debugpy",
+      "request": "launch",
+      "python": "${workspaceFolder}/services/api/.venv/Scripts/python.exe",
+      "module": "uvicorn",
+      "args": ["gogdely_api.main:app", "--host", "127.0.0.1", "--port", "8765"],
+      "cwd": "${workspaceFolder}/services/api",
+      "env": {"GOGDELY_ENV": "local", "GOGDELY_LOCAL_DEMO": "1"},
+      "console": "integratedTerminal",
+      "justMyCode": true
+    },
+    {
+      "name": "GOGDELY API • Banco local na rede (LAN)",
+      "type": "debugpy",
+      "request": "launch",
+      "python": "${workspaceFolder}/services/api/.venv/Scripts/python.exe",
+      "module": "uvicorn",
+      "args": ["gogdely_api.main:app", "--host", "0.0.0.0", "--port", "8765"],
+      "cwd": "${workspaceFolder}/services/api",
+      "env": {"GOGDELY_ENV": "local", "GOGDELY_LOCAL_DEMO": "1"},
+      "console": "integratedTerminal",
+      "justMyCode": true
+    }
+  ],
+  "compounds": [
+    {
+      "name": "GOGDELY • Abrir os 4 aplicativos + API",
+      "configurations": [
+        "GOGDELY Cliente • somente esta janela",
+        "GOGDELY Entregador • Windows",
+        "GOGDELY Loja / Restaurante • Gestão (Windows)",
+        "GOGDELY Master • Plataforma (Windows)",
+        "GOGDELY API • Banco local"
+      ],
+      "stopAll": true
+    },
+    {
+      "name": "GOGDELY • Abrir os 3 aplicativos",
+      "configurations": [
+        "GOGDELY Cliente • somente esta janela",
+        "GOGDELY Entregador • Windows",
+        "GOGDELY Loja / Restaurante • Gestão (Windows)",
+        "GOGDELY API • Banco local"
+      ],
+      "stopAll": true
+    },
+    {
+      "name": "GOGDELY Entregador + Loja / Restaurante",
+      "configurations": [
+        "GOGDELY Entregador • Windows",
+        "GOGDELY Loja / Restaurante • Gestão (Windows)",
+        "GOGDELY API • Banco local"
+      ],
+      "stopAll": true
+    }
+  ]
+}

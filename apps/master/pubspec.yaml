@@ -1,0 +1,27 @@
+name: gogdely_master
+description: "GOGDELY Master local prototype for platform governance."
+publish_to: 'none'
+
+version: 0.1.0+1
+
+environment:
+  sdk: '>=3.4.0 <4.0.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  gogdely_design_system:
+    path: ../../packages/design_system
+  gogdely_local_demo_api:
+    path: ../../packages/local_demo_api
+  http: ^1.5.0
+  supabase_flutter: ^2.18.3
+  cupertino_icons: ^1.0.8
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+
+flutter:
+  uses-material-design: true

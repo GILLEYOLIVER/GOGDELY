@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="GOGDELY Entrega: moto azul com caixa de entregas">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#1A2945"/>
+      <stop offset=".54" stop-color="#101522"/>
+      <stop offset="1" stop-color="#091121"/>
+    </linearGradient>
+    <radialGradient id="glow" cx=".55" cy=".46" r=".62">
+      <stop stop-color="#1D4ED8" stop-opacity=".48"/>
+      <stop offset="1" stop-color="#2563EB" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="blue" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#60D8FF"/>
+      <stop offset=".46" stop-color="#2563EB"/>
+      <stop offset="1" stop-color="#1743B8"/>
+    </linearGradient>
+    <linearGradient id="box" x1="0" y1="0" x2="1" y2="1">
+      <stop stop-color="#60A5FA"/>
+      <stop offset="1" stop-color="#1D4ED8"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)"/>
+  <rect width="512" height="512" rx="112" fill="url(#glow)"/>
+  <path d="M88 191a189 189 0 0 1 325-66" fill="none" stroke="#22D3EE" stroke-opacity=".45" stroke-width="16" stroke-linecap="round"/>
+  <path d="M83 231a189 189 0 0 1 95-139" fill="none" stroke="#60A5FA" stroke-width="13" stroke-linecap="round"/>
+  <path d="M94 285h47M83 312h36" stroke="#60A5FA" stroke-opacity=".85" stroke-width="11" stroke-linecap="round"/>
+  <!-- Caixa de entregas com lacre e reflexo. -->
+  <rect x="119" y="190" width="115" height="111" rx="17" fill="#081526" stroke="#79BFFF" stroke-width="8"/>
+  <rect x="127" y="198" width="99" height="95" rx="12" fill="url(#box)"/>
+  <path d="M139 211h74M173 200v39" fill="none" stroke="#BDEBFF" stroke-opacity=".85" stroke-width="8" stroke-linecap="round"/>
+  <path d="M163 251h29l-12 21h-29z" fill="#F8FAFC"/>
+  <!-- Capacete e corpo do entregador. -->
+  <path d="M238 183c3-32 25-52 56-52 33 0 55 23 58 54l-17 28h-80z" fill="#151B2B" stroke="#60A5FA" stroke-width="8"/>
+  <path d="M249 179c7-23 24-35 45-35 25 0 43 15 48 35z" fill="url(#blue)"/>
+  <path d="M258 193h86l-15 23h-64z" fill="#CFF5FF"/>
+  <path d="M239 227c14-13 35-18 58-14 29 5 47 21 58 48l-29 23-41-27-20 67-61-12z" fill="#253047" stroke="#87BFFF" stroke-width="6"/>
+  <path d="M325 257l38 29h30" fill="none" stroke="#F8FAFC" stroke-width="13" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Scooter, guidão e rodas em silhueta legível em tamanho pequeno. -->
+  <path d="M389 254h24l-23 33M385 278l24 90" fill="none" stroke="#B6C8E6" stroke-width="11" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M139 327h107l36-56 49 4-19 57h71l-22 31H246l-23-14h-78z" fill="url(#blue)" stroke="#88DFFF" stroke-width="7" stroke-linejoin="round"/>
+  <path d="M227 327h69l-13 28h-39z" fill="#101522"/>
+  <path d="M274 271l-31 58" fill="none" stroke="#F8FAFC" stroke-width="13" stroke-linecap="round"/>
+  <circle cx="166" cy="365" r="45" fill="#081526" stroke="#60A5FA" stroke-width="12"/>
+  <circle cx="166" cy="365" r="15" fill="#F8FAFC"/>
+  <circle cx="367" cy="365" r="45" fill="#081526" stroke="#60A5FA" stroke-width="12"/>
+  <circle cx="367" cy="365" r="15" fill="#F8FAFC"/>
+  <path d="M141 421h251" stroke="#60A5FA" stroke-opacity=".35" stroke-width="11" stroke-linecap="round"/>
+</svg>

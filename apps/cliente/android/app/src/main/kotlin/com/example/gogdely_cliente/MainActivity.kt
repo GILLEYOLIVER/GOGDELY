@@ -1,0 +1,5 @@
+package com.example.gogdely_cliente
+
+import io.flutter.embedding.android.FlutterActivity
+
+class MainActivity : FlutterActivity()

@@ -2,7 +2,7 @@
 
 Plataforma marketplace multiempresa e multissetorial (planejamento v1.0).
 
-**Estado:** inicialização documental; sem aplicativo executável, sem dependências instaladas, sem serviços pagos e sem deploy.
+**Estado:** protótipos locais e prévias web em homologação. O laboratório de pedidos fictícios usa SQLite isolado no computador. A API de homologação usa a fundação PostgreSQL separada no Supabase; a publicação web inclui Cliente, Gestão, Entregador e Master. O Master hospedado oferece entrada protegida e visão de empresas condicionada à conta autorizada com MFA. A branch GOG-096 prepara cadastro, ativação, suspensão, vínculo de conta confirmada, configuração de comissão e auditoria; essas ações dependem da migration `0006` e não foram liberadas no banco hospedado. Convites externos, cobrança e operação comercial real continuam pendentes. Nenhum app está homologado para produção.
 
 ## Aplicativos previstos
 - Cliente — Android e iOS (Flutter)
@@ -15,7 +15,7 @@ FastAPI no Render; Supabase PostgreSQL/Auth/Storage/Realtime; isolamento por ten
 
 ## Governança
 - `main`: base estável; `develop`: integração; `feature/*`: alterações isoladas.
-- PR com revisão técnica e aprovação do proprietário; agentes de IA não podem contornar verificações.
+- PR rastreável com evidências e reversão; revisão técnica independente é opcional. Entrega autorizada pelo proprietário segue até merge e deploy de homologação após os ajustes e verificações aplicáveis.
 - Sem serviços pagos ou produção sem autorização expressa.
 - O Documento Mestre GOGDELY v1.0 e seus 141 registros são a referência de planejamento.
 

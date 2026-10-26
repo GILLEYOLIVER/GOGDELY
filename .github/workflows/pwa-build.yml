@@ -1,0 +1,77 @@
+name: GOGDELY PWA builds
+
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/pwa-build.yml'
+      - 'apps/cliente/**'
+      - 'apps/gestao/**'
+      - 'apps/entregador/**'
+      - 'packages/**'
+      - 'scripts/stamp_pwa_version.py'
+      - 'scripts/prepare_hosted_pwas.py'
+      - 'scripts/build_render_pwas.sh'
+      - 'scripts/test-release-update.cjs'
+      - 'scripts/tests/**'
+  push:
+    branches: [develop, main]
+    paths:
+      - '.github/workflows/pwa-build.yml'
+      - 'apps/cliente/**'
+      - 'apps/gestao/**'
+      - 'apps/entregador/**'
+      - 'packages/**'
+      - 'scripts/stamp_pwa_version.py'
+      - 'scripts/prepare_hosted_pwas.py'
+      - 'scripts/build_render_pwas.sh'
+      - 'scripts/test-release-update.cjs'
+      - 'scripts/tests/**'
+
+permissions:
+  contents: read
+
+jobs:
+  web-builds:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install pinned Flutter SDK
+        shell: bash
+        run: |
+          git init "$RUNNER_TEMP/flutter"
+          git -C "$RUNNER_TEMP/flutter" remote add origin https://github.com/flutter/flutter.git
+          git -C "$RUNNER_TEMP/flutter" fetch --depth 1 origin refs/tags/3.47.0:refs/tags/3.47.0
+          test "$(git -C "$RUNNER_TEMP/flutter" rev-parse refs/tags/3.47.0)" = 4cf24164269a5ebf0c16a028a00727d0e77bbb05
+          git -C "$RUNNER_TEMP/flutter" checkout --detach refs/tags/3.47.0
+          echo "$RUNNER_TEMP/flutter/bin" >> "$GITHUB_PATH"
+      - name: Check PWA release scripts
+        run: |
+          node scripts/test-release-update.cjs
+          python -m unittest discover -s scripts/tests -p 'test_*.py'
+      - name: Build Cliente, Gestão and Entregador
+        shell: bash
+        run: |
+          for app in cliente gestao entregador; do
+            (
+              cd "apps/$app"
+              flutter pub get
+              flutter build web --release --no-wasm-dry-run --base-href "/$app/"
+            )
+          done
+          python scripts/stamp_pwa_version.py "$GITHUB_SHA"
+          python scripts/prepare_hosted_pwas.py
+      - name: Verify complete release bundles
+        shell: bash
+        run: |
+          for app in cliente gestao entregador; do
+            test -s "apps/$app/build/web/index.html"
+            test -s "apps/$app/build/web/main.dart.js"
+            test -s "apps/$app/build/web/version.json"
+            grep -F "$GITHUB_SHA" "apps/$app/build/web/version.json"
+            test -s "build/pwa/$app/index.html"
+            test -s "build/pwa/$app/manifest.json"
+          done
+          test -s build/pwa/index.html
+          test -s build/pwa/gestao/apple-touch-icon.png
+          test -s build/pwa/entregador/apple-touch-icon.png

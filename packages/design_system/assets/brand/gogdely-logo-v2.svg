@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="360" viewBox="0 0 1200 360" role="img" aria-labelledby="title desc">
+  <title id="title">GOGDELY — proposta 2</title>
+  <desc id="desc">Marca GOGDELY com símbolo de rota entre dois pontos e nome em branco e azul.</desc>
+  <rect width="1200" height="360" rx="36" fill="#101522"/>
+  <g transform="translate(56 55)">
+    <rect width="250" height="250" rx="65" fill="#253047"/>
+    <path d="M66 178 C76 113 167 174 180 81" fill="none" stroke="#60A5FA" stroke-width="20" stroke-linecap="round"/>
+    <circle cx="66" cy="178" r="27" fill="#2563EB" stroke="#FFFFFF" stroke-width="10"/>
+    <path d="M180 45c-30 0-54 24-54 54 0 41 54 91 54 91s54-50 54-91c0-30-24-54-54-54Z" fill="#2563EB"/>
+    <circle cx="180" cy="99" r="22" fill="#FFFFFF"/>
+  </g>
+  <g font-family="Segoe UI, Arial, sans-serif" font-size="142" font-weight="800" letter-spacing="-9">
+    <text x="350" y="205" fill="#FFFFFF">gog</text>
+    <text x="591" y="205" fill="#60A5FA">dely.</text>
+  </g>
+  <path d="M357 250H983" stroke="#38455D" stroke-width="2"/>
+  <text x="359" y="300" fill="#B8C4DC" font-family="Segoe UI, Arial, sans-serif" font-size="31" letter-spacing="1">Tudo mais perto de você.</text>
+</svg>
